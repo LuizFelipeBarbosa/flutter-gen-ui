@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 /// A read-only panel showing the raw A2UI JSON the model produced for the
 /// current surface. Updates live as the response streams in.
 class A2uiSourceView extends StatelessWidget {
-  const A2uiSourceView({super.key, required this.source});
+  const A2uiSourceView({required this.source, super.key});
 
   final ValueListenable<String> source;
 

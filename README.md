@@ -1,4 +1,14 @@
-# genui_template
+<p align="center">
+  <a href="https://verygood.ventures">
+    <img src="https://raw.githubusercontent.com/VGVentures/very_good_brand/main/styles/README/vgv_logo_black.png#gh-light-mode-only" width="300" alt="Very Good Ventures" />
+    <img src="https://raw.githubusercontent.com/VGVentures/very_good_brand/main/styles/README/vgv_logo_white.png#gh-dark-mode-only" width="300" alt="Very Good Ventures" />
+  </a>
+</p>
+
+# GenUI Hackathon Starter 🦄
+
+[![style: very good analysis][very_good_analysis_badge]][very_good_analysis_link]
+[![License: MIT][license_badge]][license_link]
 
 A starter Flutter app for building **Generative UI** (GenUI) experiences. Instead of the model replying with plain text, it replies with a _user interface_: buttons, lists, cards, forms, and more, rendered live as real Flutter widgets.
 
@@ -82,7 +92,7 @@ flutter run -d macos --dart-define=GEMINI_API_KEY=your_key_here
 
 Replace `your_key_here` with the key from step 2. The first build takes a minute or two; later runs are faster.
 
-> **Why `--dart-define`?** It injects the key as a compile-time constant the app reads via `String.fromEnvironment('GEMINI_API_KEY')` (see [lib/agent/gemini_agent.dart](lib/agent/gemini_agent.dart)). This keeps your secret out of the codebase. If you forget the flag, the app builds but Gemini calls fail with an auth error.
+> **Why `--dart-define`?** It injects the key as a compile-time constant the app reads via `String.fromEnvironment('GEMINI_API_KEY')` (see [lib/model/gemini_model_client.dart](lib/model/gemini_model_client.dart)). This keeps your secret out of the codebase. If you forget the flag, the app builds but Gemini calls fail with an auth error.
 
 Once it's running, type a request into the box at the bottom, for example _"give me a button that says hello and a list of three fruits."_ The left side shows the rendered UI; the right side shows the raw A2UI JSON the model produced, so you can see exactly what it asked for.
 
@@ -105,11 +115,11 @@ Start here. You can build a surprising amount just by editing these two.
 
 ### The GenUI plumbing (you might edit this)
 
-| File                                                         | What it's for                                                                                                                                                                                                                                                                                           |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File                                                                       | What it's for                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`lib/model/model_client.dart`](lib/model/model_client.dart)               | A model-agnostic `ModelClient` interface. It owns the conversation history and exposes the latest model response. Swap in a different model by writing a new subclass; nothing else has to change.                                                                                                            |
 | [`lib/model/gemini_model_client.dart`](lib/model/gemini_model_client.dart) | The Gemini implementation of `ModelClient`. Owns the Gemini client, builds the A2UI system prompt from your catalog, layers your `prompt.dart` on top, and streams the model's response. This is where the API key and model name live.                                                                       |
-| [`lib/conversation.dart`](lib/conversation.dart)             | `GenUiSession`: the heart of the pipeline. It ties together the GenUI `SurfaceController` (which renders), the transport (which carries A2UI chunks), the `Conversation` (which tracks state), and the `ModelClient`. It builds and disposes all four as a single unit so the UI doesn't have to juggle them. |
+| [`lib/conversation.dart`](lib/conversation.dart)                           | `GenUiSession`: the heart of the pipeline. It ties together the GenUI `SurfaceController` (which renders), the transport (which carries A2UI chunks), the `Conversation` (which tracks state), and the `ModelClient`. It builds and disposes all four as a single unit so the UI doesn't have to juggle them. |
 
 ### The screen and widgets (feel free to replace all this)
 
@@ -132,3 +142,13 @@ Start here. You can build a surprising amount just by editing these two.
 - **Learn the framework.** See the [`genui` package on pub.dev](https://pub.dev/packages/genui) for the full catalog API and A2UI format.
 
 Happy building.
+
+---
+
+Developed with 💙 by [Very Good Ventures][very_good_ventures_link] 🦄
+
+[license_badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[license_link]: https://opensource.org/licenses/MIT
+[very_good_analysis_badge]: https://img.shields.io/badge/style-very_good_analysis-B22C89.svg
+[very_good_analysis_link]: https://pub.dev/packages/very_good_analysis
+[very_good_ventures_link]: https://verygood.ventures

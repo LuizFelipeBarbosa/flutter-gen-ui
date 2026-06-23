@@ -12,7 +12,7 @@ import 'package:genui_template/model/model_client.dart';
 /// objects itself.
 ///
 /// It deliberately stays thin: surface tracking and waiting state are read
-/// straight from [conversation]'s [Conversation.state], not re-implemented
+/// straight from [Conversation]'s [Conversation.state], not re-implemented
 /// here. The session takes ownership of [modelClient] and disposes it too.
 class GenUiSession {
   GenUiSession({required Catalog catalog, required this.modelClient})
@@ -26,9 +26,9 @@ class GenUiSession {
     // the UI updates as the JSON streams in.
     _transport = A2uiTransportAdapter(
       onSend: (message) async {
-        await for (final chunk in modelClient.sendMessage(message.text)) {
-          _transport.addChunk(chunk);
-        }
+        await modelClient
+            .sendMessage(message.text)
+            .forEach(_transport.addChunk);
       },
     );
     // The conversation ties the controller and transport together and exposes

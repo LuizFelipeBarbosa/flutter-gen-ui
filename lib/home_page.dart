@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/model/gemini_model_client.dart';
 import 'package:genui_template/catalog.dart';
 import 'package:genui_template/conversation.dart';
+import 'package:genui_template/model/gemini_model_client.dart';
 import 'package:genui_template/widgets/widgets.dart';
 
 class HomePage extends StatefulWidget {
@@ -73,9 +73,9 @@ class _HomePageState extends State<HomePage> {
                 child: Row(
                   crossAxisAlignment: .stretch,
                   children: [
-                    // The rendered GenUI surface (latest only). `Surface` is the
-                    // widget that turns the model's A2UI into real widgets; it
-                    // just needs the render context for the surface to show.
+                    // The rendered GenUI surface (latest only). `Surface` is
+                    // the widget that turns the model's A2UI into real widgets;
+                    // it just needs the render context for the surface to show.
                     Expanded(
                       child: latestSurfaceId == null || isProcessing
                           ? const SizedBox.shrink()

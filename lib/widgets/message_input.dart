@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 /// Submitting via the keyboard or the button calls [onSend] with the text.
 class MessageInput extends StatelessWidget {
   const MessageInput({
-    super.key,
     required this.controller,
     required this.isProcessing,
     required this.onSend,
+    super.key,
   });
 
   final TextEditingController controller;
@@ -20,7 +20,7 @@ class MessageInput extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Expanded(
