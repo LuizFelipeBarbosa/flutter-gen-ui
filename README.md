@@ -28,11 +28,12 @@ Everything else in this template is plumbing that connects those two things to F
 
 ## Getting started
 
-This section assumes you have **never installed Flutter**. We'll run the app on **macOS** as a native desktop app. (You're on a Mac, so this is the quickest path. No simulators or devices needed.)
+This section assumes you have **never installed Flutter**. We'll run the app as a **native desktop app**, which is the quickest path: no simulators or devices needed. Follow the instructions for your operating system below.
 
 ### 1. Install Flutter
 
-The easiest way on macOS is via the official installer.
+<details open>
+<summary><strong>macOS</strong></summary>
 
 1. Install [Xcode](https://apps.apple.com/us/app/xcode/id497799835) from the App Store (required to build macOS apps). After it installs, open it once so it can finish setting up, then run:
    ```sh
@@ -48,6 +49,48 @@ The easiest way on macOS is via the official installer.
    flutter doctor
    ```
    You want green checkmarks for **Flutter** and **Xcode** at minimum. Don't worry if Android/Chrome show warnings; you don't need them for macOS.
+
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+1. Install [Visual Studio](https://visualstudio.microsoft.com/downloads/) (the IDE, not VS Code) with the **"Desktop development with C++"** workload. This is required to build Windows desktop apps.
+2. Install Flutter. If you have [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/) (built into Windows 10/11), open PowerShell and run:
+   ```powershell
+   winget install --id=Google.Flutter -e
+   ```
+   Otherwise, follow the manual steps at [docs.flutter.dev/get-started/install/windows](https://docs.flutter.dev/get-started/install/windows). After installing, close and reopen your terminal so `flutter` is on your `PATH`.
+3. Confirm everything is healthy. This checks your toolchain and tells you if anything is missing:
+   ```powershell
+   flutter doctor
+   ```
+   You want green checkmarks for **Flutter** and **Visual Studio** at minimum. Don't worry if Android/Chrome show warnings; you don't need them for Windows desktop.
+
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
+
+1. Install the build dependencies for Linux desktop apps. On Debian/Ubuntu:
+   ```sh
+   sudo apt-get update
+   sudo apt-get install -y curl git unzip xz-utils zip libglu1-mesa \
+     clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+   ```
+   (On Fedora/Arch the package names differ; see the Flutter docs linked below.)
+2. Install Flutter. The simplest cross-distro option is [snap](https://snapcraft.io/):
+   ```sh
+   sudo snap install flutter --classic
+   ```
+   Otherwise, follow the manual steps at [docs.flutter.dev/get-started/install/linux](https://docs.flutter.dev/get-started/install/linux).
+3. Confirm everything is healthy. This checks your toolchain and tells you if anything is missing:
+   ```sh
+   flutter doctor
+   ```
+   You want green checkmarks for **Flutter** and **Linux toolchain** at minimum. Don't worry if Android/Chrome show warnings; you don't need them for Linux desktop.
+
+</details>
 
 This project targets the Flutter SDK that ships **Dart `^3.12.1`** (see [pubspec.yaml](pubspec.yaml)). If `flutter doctor` reports an older Dart, run `flutter upgrade`.
 
@@ -69,21 +112,33 @@ From the project root:
 flutter pub get
 ```
 
-### 4. Run the app on macOS
+### 4. Run the app
 
-Enable macOS desktop support once (harmless if already enabled):
+Enable desktop support for your platform once (harmless if already enabled):
 
 ```sh
+# macOS
 flutter config --enable-macos-desktop
+# Windows
+flutter config --enable-windows-desktop
+# Linux
+flutter config --enable-linux-desktop
 ```
 
-Then run, passing your Featherless key in via `--dart-define`:
+Then run, passing your Featherless key in via `--dart-define`. Use the device matching your OS:
 
 ```sh
+# macOS
 flutter run -d macos --dart-define=FEATHERLESS_API_KEY=your_key_here
+# Windows
+flutter run -d windows --dart-define=FEATHERLESS_API_KEY=your_key_here
+# Linux
+flutter run -d linux --dart-define=FEATHERLESS_API_KEY=your_key_here
 ```
 
 Replace `your_key_here` with the key from step 2. The first build takes a minute or two; later runs are faster.
+
+> **Windows note:** In PowerShell the command above works as-is. If your key contains special characters, wrap the whole `--dart-define` value in quotes: `"--dart-define=FEATHERLESS_API_KEY=your_key_here"`.
 
 > **Why `--dart-define`?** It injects the key as a compile-time constant the app reads via `String.fromEnvironment('FEATHERLESS_API_KEY')` (see [lib/model/featherless_model_client.dart](lib/model/featherless_model_client.dart)). This keeps your secret out of the codebase. If you forget the flag or the key is invalid, the app shows a SnackBar with the error instead of a blank screen.
 
