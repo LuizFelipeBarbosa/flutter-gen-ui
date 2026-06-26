@@ -125,26 +125,31 @@ flutter config --enable-windows-desktop
 flutter config --enable-linux-desktop
 ```
 
-Then run, passing your Featherless key in via `--dart-define`. Use the device matching your OS:
+Then run, passing your Featherless key in via `--dart-define`. Add
+`KEY_511` if you want local desktop live 511 departures for Muni, Caltrain,
+AC Transit, VTA, ferries, and other monitored Bay Area operators. Use the
+device matching your OS:
 
 ```sh
 # macOS
-flutter run -d macos --dart-define=FEATHERLESS_API_KEY=your_key_here
+flutter run -d macos --dart-define=FEATHERLESS_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 # Windows
-flutter run -d windows --dart-define=FEATHERLESS_API_KEY=your_key_here
+flutter run -d windows --dart-define=FEATHERLESS_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 # Linux
-flutter run -d linux --dart-define=FEATHERLESS_API_KEY=your_key_here
+flutter run -d linux --dart-define=FEATHERLESS_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 ```
 
 Replace `your_key_here` with the key from step 2. The first build takes a minute or two; later runs are faster.
+Replace `your_511_token` with a token from 511 SF Bay Open Data, or omit that
+flag if you only need BART's public real-time feed and planned estimates.
 
 > **Windows note:** In PowerShell the command above works as-is. If your key contains special characters, wrap the whole `--dart-define` value in quotes: `"--dart-define=FEATHERLESS_API_KEY=your_key_here"`.
 
-> **Why `--dart-define`?** It injects the key as a compile-time constant the app reads via `String.fromEnvironment('FEATHERLESS_API_KEY')` (see [lib/model/featherless_model_client.dart](lib/model/featherless_model_client.dart)). This keeps your secret out of the codebase. If you forget the flag or the key is invalid, the app shows a SnackBar with the error instead of a blank screen.
+> **Why `--dart-define`?** It injects keys as compile-time constants read with `String.fromEnvironment(...)` (see [lib/model/featherless_model_client.dart](lib/model/featherless_model_client.dart) and [lib/transit/bart_departures_client.dart](lib/transit/bart_departures_client.dart)). This keeps secrets out of the codebase for local desktop runs. Do not ship public web/mobile builds with `KEY_511` embedded; use a server-side proxy for production 511 access.
 
 Once it's running, type a request into the box at the bottom, for example _"Make a list of 3 fruits with their emojis, and a button to add a new random fruit to the list"_ The left side shows the rendered UI; the right side shows the raw A2UI JSON the model produced, so you can see exactly what it asked for.
 
-> **Tip:** Tired of typing the long command? Most editors let you save it. In VS Code, add a `launch.json` config with `"args": ["--dart-define=FEATHERLESS_API_KEY=your_key_here"]`.
+> **Tip:** Tired of typing the long command? Most editors let you save it. In VS Code, add a `launch.json` config with `"args": ["--dart-define=FEATHERLESS_API_KEY=your_key_here", "--dart-define=KEY_511=your_511_token"]`.
 
 ---
 

@@ -1,0 +1,301 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:genui_template/transit/bart_departures_client.dart';
+import 'package:genui_template/transit/transit_lines.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+void main() {
+  group('LiveDeparturesClient 511 support', () {
+    test('requires KEY_511 for 511 calls', () {
+      final emptyKey = ''.trim();
+      final client = LiveDeparturesClient(
+        key511: emptyKey,
+        httpClient: MockClient((_) async {
+          fail('511 requests should not run without a token');
+        }),
+      );
+
+      expect(
+        client.fetch511Departures(agency: 'SF', stopCode: '15184'),
+        throwsA(
+          isA<LiveDeparturesException>().having(
+            (error) => error.message,
+            'message',
+            contains('KEY_511'),
+          ),
+        ),
+      );
+    });
+
+    test('filters and caches monitored agencies', () async {
+      var operatorRequests = 0;
+      final client = LiveDeparturesClient(
+        key511: 'test-511-key',
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/transit/operators') {
+            operatorRequests += 1;
+            return _jsonResponse({
+              'operators': [
+                {'Id': 'SF', 'Name': 'Muni', 'Monitored': true},
+                {'Id': '5E', 'Name': 'Internal 511', 'Monitored': true},
+                {'Id': 'ZZ', 'Name': 'Static Only', 'Monitored': false},
+              ],
+            });
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      final first = await client.monitoredAgencies();
+      final second = await client.monitoredAgencies();
+
+      expect(first.map((agency) => agency.id), ['SF']);
+      expect(second, same(first));
+      expect(operatorRequests, 1);
+    });
+
+    test(
+      'resolves agency and stop names, strips BOM, and parses SIRI times',
+      () async {
+        final requests = <Uri>[];
+        final client = LiveDeparturesClient(
+          key511: 'test-511-key',
+          now: () => DateTime.parse('2026-06-26T12:00:00Z'),
+          httpClient: MockClient((request) async {
+            requests.add(request.url);
+            return switch (request.url.path) {
+              '/transit/operators' => _jsonResponse({
+                'operators': [
+                  {'Id': 'SF', 'Name': 'Muni', 'Monitored': true},
+                ],
+              }),
+              '/transit/stops' => _jsonResponse({
+                'stops': [
+                  {'StopCode': '15184', 'Name': 'Metro Embarcadero'},
+                ],
+              }),
+              '/transit/lines' => _jsonResponse({
+                'lines': [
+                  {'Id': 'N', 'Name': 'N Judah', 'TransportMode': 'tram'},
+                  {'Id': 'K', 'Name': 'K Ingleside', 'TransportMode': 'tram'},
+                ],
+              }),
+              '/transit/StopMonitoring' => _jsonResponse(
+                _siri([
+                  _visit(
+                    line: 'N',
+                    publishedLine: 'N',
+                    destination: 'Ocean Beach',
+                    stopName: 'Embarcadero Station',
+                    expectedDeparture: '2026-06-26T12:04:00Z',
+                  ),
+                  _visit(
+                    line: 'K',
+                    publishedLine: 'K',
+                    destination: 'Balboa Park',
+                    stopName: 'Embarcadero Station',
+                    expectedArrival: '2026-06-26T12:06:00Z',
+                  ),
+                  _visit(
+                    line: 'N',
+                    publishedLine: 'N',
+                    destination: 'Caltrain',
+                    stopName: 'Embarcadero Station',
+                    aimedDeparture: '2026-06-26T12:08:00Z',
+                  ),
+                ]),
+                prefixBom: true,
+              ),
+              _ => http.Response('not found', 404),
+            };
+          }),
+        );
+
+        final board = await client.fetch511Departures(
+          agencyName: 'Muni',
+          stopName: 'Metro Embarcadero',
+        );
+
+        expect(board.station, 'Embarcadero Station');
+        expect(board.sourceLabel, 'Muni');
+        expect(board.departures.map((departure) => departure.minutes), [
+          4,
+          6,
+          8,
+        ]);
+        expect(board.departures.first.line, 'muni-n');
+        expect(board.departures.first.lineLabel, 'N Judah');
+        expect(board.departures.first.operatorName, 'Muni');
+        expect(board.departures.first.mode, 'tram');
+
+        final stopMonitoringUrl = requests.singleWhere(
+          (url) => url.path == '/transit/StopMonitoring',
+        );
+        expect(stopMonitoringUrl.queryParameters['agency'], 'SF');
+        expect(stopMonitoringUrl.queryParameters['stopcode'], '15184');
+        expect(stopMonitoringUrl.queryParameters['api_key'], 'test-511-key');
+      },
+    );
+
+    test('maps non-core monitored operators to generic line styles', () async {
+      final client = LiveDeparturesClient(
+        key511: 'test-511-key',
+        now: () => DateTime.parse('2026-06-26T12:00:00Z'),
+        httpClient: MockClient((request) async {
+          return switch (request.url.path) {
+            '/transit/operators' => _jsonResponse({
+              'operators': [
+                {'Id': 'VT', 'Name': 'VTA', 'Monitored': true},
+              ],
+            }),
+            '/transit/lines' => _jsonResponse({
+              'lines': [
+                {'Id': '22', 'Name': '22 Local', 'TransportMode': 'bus'},
+              ],
+            }),
+            '/transit/StopMonitoring' => _jsonResponse(
+              _siri([
+                _visit(
+                  line: '22',
+                  publishedLine: '22',
+                  destination: 'Palo Alto',
+                  stopName: 'Santa Clara Transit Center',
+                  expectedDeparture: '2026-06-26T12:05:00Z',
+                ),
+              ]),
+            ),
+            _ => http.Response('not found', 404),
+          };
+        }),
+      );
+
+      final board = await client.fetch511Departures(
+        agency: 'VT',
+        stopCode: '64723',
+      );
+
+      expect(board.sourceLabel, 'VTA');
+      expect(board.departures.single.line, regionalBusLineId);
+      expect(board.departures.single.lineLabel, '22 Local');
+      expect(board.departures.single.operatorName, 'VTA');
+    });
+
+    test('surfaces SIRI error payloads', () {
+      final client = LiveDeparturesClient(
+        key511: 'test-511-key',
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/transit/StopMonitoring') {
+            return _jsonResponse({
+              'ServiceDelivery': {
+                'StopMonitoringDelivery': {
+                  'ErrorCondition': {
+                    'Description': 'Invalid stop code',
+                  },
+                },
+              },
+            });
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      expect(
+        client.fetch511Departures(agency: 'SF', stopCode: 'bad-stop'),
+        throwsA(
+          isA<LiveDeparturesException>().having(
+            (error) => error.message,
+            'message',
+            contains('Invalid stop code'),
+          ),
+        ),
+      );
+    });
+
+    test('caches live departure boards for the configured TTL', () async {
+      var now = DateTime.parse('2026-06-26T12:00:00Z');
+      var stopMonitoringRequests = 0;
+      final client = LiveDeparturesClient(
+        key511: 'test-511-key',
+        now: () => now,
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/transit/lines') {
+            return _jsonResponse({
+              'lines': [
+                {'Id': 'N', 'Name': 'N Judah', 'TransportMode': 'tram'},
+              ],
+            });
+          }
+          if (request.url.path == '/transit/StopMonitoring') {
+            stopMonitoringRequests += 1;
+            return _jsonResponse(
+              _siri([
+                _visit(
+                  line: 'N',
+                  publishedLine: 'N',
+                  destination: 'Ocean Beach',
+                  stopName: 'Embarcadero Station',
+                  expectedDeparture: '2026-06-26T12:04:00Z',
+                ),
+              ]),
+            );
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      await client.fetch511Departures(agency: 'SF', stopCode: '15184');
+      await client.fetch511Departures(agency: 'SF', stopCode: '15184');
+      now = now.add(const Duration(seconds: 61));
+      await client.fetch511Departures(agency: 'SF', stopCode: '15184');
+
+      expect(stopMonitoringRequests, 2);
+    });
+  });
+}
+
+http.Response _jsonResponse(
+  Object body, {
+  bool prefixBom = false,
+}) {
+  final json = jsonEncode(body);
+  if (!prefixBom) return http.Response(json, 200);
+  return http.Response.bytes(utf8.encode('\uFEFF$json'), 200);
+}
+
+Map<String, Object?> _siri(List<Map<String, Object?>> visits) {
+  return {
+    'ServiceDelivery': {
+      'StopMonitoringDelivery': {
+        'MonitoredStopVisit': visits,
+      },
+    },
+  };
+}
+
+Map<String, Object?> _visit({
+  required String line,
+  required String publishedLine,
+  required String destination,
+  required String stopName,
+  String? expectedDeparture,
+  String? expectedArrival,
+  String? aimedDeparture,
+}) {
+  final call = <String, Object?>{
+    'StopPointName': stopName,
+    'ExpectedDepartureTime': expectedDeparture,
+    'ExpectedArrivalTime': expectedArrival,
+    'AimedDepartureTime': aimedDeparture,
+  }..removeWhere((_, value) => value == null);
+
+  return {
+    'MonitoredVehicleJourney': {
+      'LineRef': line,
+      'PublishedLineName': publishedLine,
+      'DestinationName': destination,
+      'MonitoredCall': call,
+    },
+  };
+}

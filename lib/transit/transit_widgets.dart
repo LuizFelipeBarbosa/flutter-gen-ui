@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:genui_template/transit/_json.dart' as json_value;
 import 'package:genui_template/transit/bart_departures_client.dart';
 import 'package:genui_template/transit/transit_lines.dart';
 
@@ -180,6 +181,7 @@ class TransitDeparturesCard extends StatelessWidget {
     required this.station,
     required this.departures,
     this.live = false,
+    this.statusLabel,
     super.key,
   });
 
@@ -187,16 +189,21 @@ class TransitDeparturesCard extends StatelessWidget {
     return TransitDeparturesCard(
       station: _string(json['station'], 'Station'),
       live: _bool(json['live'], fallback: false),
+      statusLabel: _nullableString(json['statusLabel']),
       departures: _mapList(
         json['list'],
       ).map(TransitDeparture.fromJson).toList(),
     );
   }
 
-  factory TransitDeparturesCard.fromBartBoard(BartDepartureBoard board) {
+  factory TransitDeparturesCard.fromBartBoard(
+    BartDepartureBoard board, {
+    String? statusLabel,
+  }) {
     return TransitDeparturesCard(
       station: board.station,
       live: board.live,
+      statusLabel: statusLabel,
       departures: [
         for (final departure in board.departures)
           TransitDeparture(
@@ -205,6 +212,10 @@ class TransitDeparturesCard extends StatelessWidget {
             platform: departure.platform,
             minutes: departure.minutes,
             live: departure.live,
+            lineLabel: departure.lineLabel,
+            operatorName: departure.operatorName,
+            operatorId: departure.operatorId,
+            mode: departure.mode,
           ),
       ],
     );
@@ -213,6 +224,7 @@ class TransitDeparturesCard extends StatelessWidget {
   final String station;
   final List<TransitDeparture> departures;
   final bool live;
+  final String? statusLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -240,10 +252,10 @@ class TransitDeparturesCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (live)
+              if (live && statusLabel == null)
                 const _LivePill()
               else
-                const _MutedChip(label: 'Planned'),
+                _MutedChip(label: statusLabel ?? 'Planned'),
             ],
           ),
           const SizedBox(height: 8),
@@ -255,7 +267,55 @@ class TransitDeparturesCard extends StatelessWidget {
   }
 }
 
-class LiveBartDeparturesBoard extends StatefulWidget {
+class LiveTransitDeparturesBoard extends StatefulWidget {
+  const LiveTransitDeparturesBoard({
+    required this.request,
+    this.displayName,
+    this.client,
+    super.key,
+  });
+
+  factory LiveTransitDeparturesBoard.fromJson(Map<String, Object?> json) {
+    final source = _string(json['source']).toLowerCase();
+    final stationAbbr = _nullableString(json['stationAbbr']);
+    if (source != '511' && stationAbbr != null) {
+      return LiveTransitDeparturesBoard(
+        request: LiveDeparturesRequest.bart(stationAbbr: stationAbbr),
+        displayName: _nullableString(json['stationName']),
+      );
+    }
+
+    if (source == '511' || _nullableString(json['agency']) != null) {
+      return LiveTransitDeparturesBoard(
+        request: LiveDeparturesRequest.sf511(
+          agency: _nullableString(json['agency']),
+          agencyName: _nullableString(json['agencyName']),
+          stopCode: _nullableString(json['stopCode']),
+          stopName: _nullableString(json['stopName']),
+          lineFilter: _nullableString(json['lineFilter']),
+        ),
+        displayName: _nullableString(json['stopName']),
+      );
+    }
+
+    return LiveTransitDeparturesBoard(
+      request: LiveDeparturesRequest.bart(
+        stationAbbr: _string(json['stationAbbr'], 'EMBR'),
+      ),
+      displayName: _nullableString(json['stationName']),
+    );
+  }
+
+  final LiveDeparturesRequest request;
+  final String? displayName;
+  final LiveDeparturesClient? client;
+
+  @override
+  State<LiveTransitDeparturesBoard> createState() =>
+      _LiveTransitDeparturesBoardState();
+}
+
+class LiveBartDeparturesBoard extends StatelessWidget {
   const LiveBartDeparturesBoard({
     required this.stationAbbr,
     this.stationName,
@@ -275,13 +335,19 @@ class LiveBartDeparturesBoard extends StatefulWidget {
   final BartDeparturesClient? client;
 
   @override
-  State<LiveBartDeparturesBoard> createState() =>
-      _LiveBartDeparturesBoardState();
+  Widget build(BuildContext context) {
+    return LiveTransitDeparturesBoard(
+      request: LiveDeparturesRequest.bart(stationAbbr: stationAbbr),
+      displayName: stationName,
+      client: client,
+    );
+  }
 }
 
-class _LiveBartDeparturesBoardState extends State<LiveBartDeparturesBoard> {
-  late final BartDeparturesClient _client =
-      widget.client ?? BartDeparturesClient();
+class _LiveTransitDeparturesBoardState
+    extends State<LiveTransitDeparturesBoard> {
+  late final LiveDeparturesClient _client =
+      widget.client ?? LiveDeparturesClient();
   Timer? _refreshTimer;
   BartDepartureBoard? _board;
   Object? _error;
@@ -299,11 +365,12 @@ class _LiveBartDeparturesBoardState extends State<LiveBartDeparturesBoard> {
   }
 
   @override
-  void didUpdateWidget(covariant LiveBartDeparturesBoard oldWidget) {
+  void didUpdateWidget(covariant LiveTransitDeparturesBoard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.stationAbbr != widget.stationAbbr) {
+    if (oldWidget.request.cacheKey != widget.request.cacheKey) {
       _board = null;
       _error = null;
+      _updatedAt = null;
       unawaited(_load());
     }
   }
@@ -316,22 +383,23 @@ class _LiveBartDeparturesBoardState extends State<LiveBartDeparturesBoard> {
   }
 
   Future<void> _load() async {
-    final requestedStation = widget.stationAbbr;
+    final request = widget.request;
     setState(() {
       _loading = _board == null;
       _error = null;
     });
 
     try {
-      final board = await _client.fetchDepartures(requestedStation);
-      if (!mounted || widget.stationAbbr != requestedStation) return;
+      final board = await _client.fetch(request);
+      if (!mounted || widget.request.cacheKey != request.cacheKey) return;
       setState(() {
         _board = board;
+        _error = null;
         _updatedAt = DateTime.now();
         _loading = false;
       });
     } on Object catch (error) {
-      if (!mounted || widget.stationAbbr != requestedStation) return;
+      if (!mounted || widget.request.cacheKey != request.cacheKey) return;
       setState(() {
         _error = error;
         _loading = false;
@@ -343,15 +411,25 @@ class _LiveBartDeparturesBoardState extends State<LiveBartDeparturesBoard> {
   Widget build(BuildContext context) {
     final board = _board;
     if (_loading && board == null) {
-      return const _LoadingCard(message: 'Reaching BART real-time feed...');
+      return _LoadingCard(
+        message:
+            'Reaching ${_sourceLabelFor(widget.request)} real-time feed...',
+      );
     }
 
-    if (board == null) {
+    final status = _liveDepartureStatusFor(board);
+    final displayBoard =
+        board ??
+        _fallbackBoardFor(
+          widget.request,
+          widget.displayName,
+        );
+    if (displayBoard == null) {
       return TransitNoteCard(
         tone: TransitNoteTone.warning,
         text:
-            'Could not reach BART live departures for '
-            '${widget.stationName ?? widget.stationAbbr}: $_error',
+            'Could not reach ${_sourceLabelFor(widget.request)} live '
+            'departures for ${widget.displayName ?? 'this stop'}: $_error',
       );
     }
 
@@ -360,11 +438,26 @@ class _LiveBartDeparturesBoardState extends State<LiveBartDeparturesBoard> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: _LiveHeader(updatedAt: _updatedAt, retrying: _error != null),
+          child: _LiveHeader(
+            updatedAt: _updatedAt,
+            retrying: _error != null,
+            status: status,
+            sourceLabel: displayBoard.sourceLabel,
+          ),
         ),
-        TransitDeparturesCard.fromBartBoard(board),
+        TransitDeparturesCard.fromBartBoard(
+          displayBoard,
+          statusLabel: status.departuresLabel,
+        ),
       ],
     );
+  }
+
+  _LiveDepartureStatus _liveDepartureStatusFor(BartDepartureBoard? board) {
+    if (board == null) return _LiveDepartureStatus.offlineEstimate;
+    if (_error != null) return _LiveDepartureStatus.cached;
+    if (!board.live) return _LiveDepartureStatus.planned;
+    return _LiveDepartureStatus.live;
   }
 }
 
@@ -571,18 +664,17 @@ class TransitJourney {
   });
 
   factory TransitJourney.fromJson(Map<String, Object?> json) {
-    final legs = _mapList(json['legs']).map(TransitLeg.fromJson).toList();
-    final duration = _int(
-      json['duration'],
-      fallback: legs.fold<int>(0, (total, leg) => total + leg.minutes),
-    );
+    final rawLegs = _mapList(json['legs']).map(TransitLeg.fromJson).toList();
+    final legs = _normalizeOakConnectorLegs(rawLegs);
+    final legDuration = legs.fold<int>(0, (total, leg) => total + leg.minutes);
+    final depart = _string(json['depart'], '--:--');
 
     return TransitJourney(
       from: _string(json['from'], 'Origin'),
       to: _string(json['to'], 'Destination'),
-      depart: _string(json['depart'], '--:--'),
+      depart: depart,
       arrive: _string(json['arrive']),
-      duration: duration,
+      duration: _int(json['duration'], fallback: legDuration),
       changes: _int(json['changes']),
       fare: _string(json['fare']),
       crowd: _string(json['crowd']),
@@ -665,6 +757,21 @@ class TransitLeg {
     );
   }
 
+  TransitLeg copyWith({
+    int? minutes,
+    int? stops,
+  }) {
+    return TransitLeg(
+      type: type,
+      line: line,
+      from: from,
+      to: to,
+      station: station,
+      minutes: minutes ?? this.minutes,
+      stops: stops ?? this.stops,
+    );
+  }
+
   final TransitLegType type;
   final String line;
   final String from;
@@ -681,15 +788,23 @@ class TransitDeparture {
     required this.minutes,
     this.platform,
     this.live = false,
+    this.lineLabel,
+    this.operatorName,
+    this.operatorId,
+    this.mode,
   });
 
   factory TransitDeparture.fromJson(Map<String, Object?> json) {
     return TransitDeparture(
-      line: _string(json['line'], 'bart-red'),
+      line: _string(json['line'], fallbackTransitLine.id),
       destination: _string(json['dest'], 'Train'),
       platform: _nullableString(json['plat']),
       minutes: _int(json['mins']),
       live: _bool(json['live'], fallback: false),
+      lineLabel: _nullableString(json['lineLabel']),
+      operatorName: _nullableString(json['operatorName']),
+      operatorId: _nullableString(json['operatorId']),
+      mode: _nullableString(json['mode']),
     );
   }
 
@@ -698,6 +813,10 @@ class TransitDeparture {
   final String? platform;
   final int minutes;
   final bool live;
+  final String? lineLabel;
+  final String? operatorName;
+  final String? operatorId;
+  final String? mode;
 
   String get etaLabel => minutes <= 0 ? 'Now' : '$minutes min';
 }
@@ -1331,11 +1450,7 @@ class _DepartureRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final line = lineFor(departure.line);
-    final subline = [
-      line.label,
-      line.operatorName,
-      if (departure.platform != null) 'Plat ${departure.platform}',
-    ].where((part) => part.isNotEmpty).join(' - ');
+    final subline = _departureSubline(departure, line);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1388,11 +1503,69 @@ class _DepartureRow extends StatelessWidget {
   }
 }
 
+String _departureSubline(TransitDeparture departure, TransitLine line) {
+  final parts = <String>[];
+
+  void add(String? value) {
+    final text = value?.trim();
+    if (text == null || text.isEmpty) return;
+    final duplicate = parts.any(
+      (part) => part.toLowerCase() == text.toLowerCase(),
+    );
+    if (!duplicate) parts.add(text);
+  }
+
+  add(departure.lineLabel ?? line.label);
+  add(departure.operatorName ?? line.operatorName);
+  add(departure.mode);
+  if (departure.platform != null) add('Plat ${departure.platform}');
+
+  return parts.join(' - ');
+}
+
+enum _LiveDepartureStatus { live, planned, cached, offlineEstimate }
+
+extension on _LiveDepartureStatus {
+  String headerLabel(String sourceLabel) {
+    return switch (this) {
+      _LiveDepartureStatus.live => '$sourceLabel real-time',
+      _LiveDepartureStatus.planned => '$sourceLabel planned service',
+      _LiveDepartureStatus.cached => '$sourceLabel cached departures',
+      _LiveDepartureStatus.offlineEstimate => '$sourceLabel offline estimates',
+    };
+  }
+
+  String? get departuresLabel {
+    return switch (this) {
+      _LiveDepartureStatus.live => null,
+      _LiveDepartureStatus.planned => 'Planned',
+      _LiveDepartureStatus.cached => 'Cached',
+      _LiveDepartureStatus.offlineEstimate => 'Estimated',
+    };
+  }
+
+  Color get color {
+    return switch (this) {
+      _LiveDepartureStatus.live => const Color(0xFF3DD17F),
+      _LiveDepartureStatus.planned => const Color(0xFF8EA4B8),
+      _LiveDepartureStatus.cached => const Color(0xFFFFB020),
+      _LiveDepartureStatus.offlineEstimate => const Color(0xFFFFB020),
+    };
+  }
+}
+
 class _LiveHeader extends StatelessWidget {
-  const _LiveHeader({required this.updatedAt, required this.retrying});
+  const _LiveHeader({
+    required this.updatedAt,
+    required this.retrying,
+    required this.status,
+    required this.sourceLabel,
+  });
 
   final DateTime? updatedAt;
   final bool retrying;
+  final _LiveDepartureStatus status;
+  final String sourceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1402,12 +1575,13 @@ class _LiveHeader extends StatelessWidget {
               '${_formatClock(updatedAt!.hour * 60 + updatedAt!.minute)}';
     return Row(
       children: [
-        const _LiveDot(),
+        _LiveDot(color: status.color),
         const SizedBox(width: 8),
         Text(
-          'BART real-time$suffix${retrying ? ' - retrying' : ''}',
+          '${status.headerLabel(sourceLabel)}$suffix'
+          '${retrying ? ' - retrying' : ''}',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: const Color(0xFF3DD17F),
+            color: status.color,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.2,
           ),
@@ -1442,15 +1616,17 @@ class _LivePill extends StatelessWidget {
 }
 
 class _LiveDot extends StatelessWidget {
-  const _LiveDot();
+  const _LiveDot({this.color = const Color(0xFF4FB0E8)});
+
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 7,
       height: 7,
-      decoration: const BoxDecoration(
-        color: Color(0xFF4FB0E8),
+      decoration: BoxDecoration(
+        color: color,
         shape: BoxShape.circle,
       ),
     );
@@ -1646,44 +1822,298 @@ BoxDecoration _cardDecoration(BuildContext context, {bool emphasized = false}) {
 Color _hairlineColor(BuildContext context) =>
     Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45);
 
-List<Map<String, Object?>> _mapList(Object? value) {
-  if (value is! List) return const [];
+List<Map<String, Object?>> _mapList(Object? value) => json_value.mapList(value);
+
+String _string(Object? value, [String fallback = '']) =>
+    json_value.string(value, fallback);
+
+String? _nullableString(Object? value) => json_value.nullableString(value);
+
+int _int(Object? value, {int fallback = 0}) =>
+    json_value.integer(value, fallback: fallback);
+
+int? _nullableInt(Object? value) => json_value.nullableInteger(value);
+
+bool _bool(Object? value, {required bool fallback}) =>
+    json_value.boolean(value, fallback: fallback);
+
+BartDepartureBoard _estimatedBartDepartureBoard(
+  String stationAbbr,
+  String? stationName,
+) {
+  return BartDepartureBoard(
+    station: _estimatedBartStationName(stationAbbr, stationName),
+    live: false,
+    departures: _estimatedBartDeparturesFor(stationAbbr),
+  );
+}
+
+BartDepartureBoard? _fallbackBoardFor(
+  LiveDeparturesRequest request,
+  String? displayName,
+) {
+  if (request.source != LiveDeparturesSource.bart) return null;
+  return _estimatedBartDepartureBoard(request.stationAbbr ?? '', displayName);
+}
+
+String _sourceLabelFor(LiveDeparturesRequest request) {
+  return switch (request.source) {
+    LiveDeparturesSource.bart => 'BART',
+    LiveDeparturesSource.sf511 => _stringFromParts([
+      request.agencyName,
+      request.agency,
+      '511',
+    ]),
+  };
+}
+
+String _stringFromParts(List<String?> parts) {
+  for (final part in parts) {
+    final text = part?.trim();
+    if (text != null && text.isNotEmpty) return text;
+  }
+  return '';
+}
+
+String _estimatedBartStationName(String stationAbbr, String? stationName) {
+  if (stationName != null && stationName.isNotEmpty) return stationName;
+
+  final station = _bartStationForLiveInput(stationAbbr);
+  if (station != null) return station.name;
+
+  final normalizedStation = _normalizeBartStationAbbr(stationAbbr);
+  return normalizedStation.isEmpty ? 'BART station' : normalizedStation;
+}
+
+List<BartDeparture> _estimatedBartDeparturesFor(String stationAbbr) {
+  final normalizedStation = _normalizeBartStationAbbr(stationAbbr);
+  if (normalizedStation == 'OAKL') return _oakConnectorDepartures;
+  if (normalizedStation == 'COLS') return _coliseumDepartures;
+  if (_sfCoreStations.contains(normalizedStation)) return _sfCoreDepartures;
+  if (_eastBayNorthStations.contains(normalizedStation)) {
+    return _eastBayNorthDepartures;
+  }
+  if (_peninsulaStations.contains(normalizedStation)) {
+    return _peninsulaDepartures;
+  }
+
+  return _defaultBartDepartures;
+}
+
+String _normalizeBartStationAbbr(String stationAbbr) {
+  final station = _bartStationForLiveInput(stationAbbr);
+  if (station != null) return station.abbr;
+
+  final cleaned = stationAbbr.toUpperCase().replaceAll(
+    RegExp('[^A-Z0-9]'),
+    '',
+  );
+  return cleaned.length == 4 ? cleaned : '';
+}
+
+BartStation? _bartStationForLiveInput(String input) {
+  return resolveBartStation(input) ?? bartStationForAbbr(input);
+}
+
+List<TransitLeg> _normalizeOakConnectorLegs(List<TransitLeg> legs) {
   return [
-    for (final item in value)
-      if (item is Map)
-        item.map((key, value) => MapEntry(key.toString(), value)),
+    for (final leg in legs)
+      _isOakConnectorRide(leg)
+          ? leg.copyWith(
+              minutes: oakAirportConnectorMinutes,
+              stops: oakAirportConnectorStops,
+            )
+          : leg,
   ];
 }
 
-String _string(Object? value, [String fallback = '']) {
-  if (value == null) return fallback;
-  final text = value.toString();
-  return text.isEmpty ? fallback : text;
+bool _isOakConnectorRide(TransitLeg leg) {
+  if (leg.type != TransitLegType.ride ||
+      leg.line != oakAirportConnectorLineId) {
+    return false;
+  }
+
+  final from = _oakConnectorStationKind(leg.from);
+  final to = _oakConnectorStationKind(leg.to);
+  return (from == _OakConnectorStation.coliseum &&
+          to == _OakConnectorStation.oakAirport) ||
+      (from == _OakConnectorStation.oakAirport &&
+          to == _OakConnectorStation.coliseum);
 }
 
-String? _nullableString(Object? value) {
-  if (value == null) return null;
-  final text = value.toString();
-  return text.isEmpty ? null : text;
+enum _OakConnectorStation { coliseum, oakAirport }
+
+_OakConnectorStation? _oakConnectorStationKind(String value) {
+  final normalized = value.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
+  return switch (normalized) {
+    'cols' || 'coliseum' || 'coliseumbart' => _OakConnectorStation.coliseum,
+    'oak' ||
+    'oakl' ||
+    'oakairport' ||
+    'oaklandairport' ||
+    'oaklandinternationalairport' => _OakConnectorStation.oakAirport,
+    _ => null,
+  };
 }
 
-int _int(Object? value, {int fallback = 0}) {
-  if (value is int) return value;
-  if (value is num) return value.round();
-  if (value is String) return int.tryParse(value) ?? fallback;
-  return fallback;
-}
+const _sfCoreStations = {
+  'EMBR',
+  'MONT',
+  'POWL',
+  'CIVC',
+  '16TH',
+  '24TH',
+  'GLEN',
+  'BALB',
+  'DALY',
+};
 
-int? _nullableInt(Object? value) {
-  if (value == null) return null;
-  return _int(value);
-}
+const _eastBayNorthStations = {
+  'RICH',
+  'DELN',
+  'PLZA',
+  'NBRK',
+  'DBRK',
+  'ASHB',
+  'MCAR',
+  '19TH',
+  '12TH',
+  'WOAK',
+};
 
-bool _bool(Object? value, {required bool fallback}) {
-  if (value is bool) return value;
-  if (value is String) return value.toLowerCase() == 'true';
-  return fallback;
-}
+const _peninsulaStations = {
+  'COLM',
+  'SSAN',
+  'SBRN',
+  'SFIA',
+  'MLBR',
+};
+
+const _sfCoreDepartures = [
+  BartDeparture(
+    line: 'bart-yellow',
+    destination: 'SFO / Millbrae',
+    minutes: 4,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-red',
+    destination: 'Richmond',
+    minutes: 7,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-blue',
+    destination: 'Dublin/Pleasanton',
+    minutes: 10,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-green',
+    destination: 'Berryessa/North San Jose',
+    minutes: 13,
+    live: false,
+  ),
+];
+
+const _eastBayNorthDepartures = [
+  BartDeparture(
+    line: 'bart-red',
+    destination: 'SFO / Millbrae',
+    minutes: 5,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-orange',
+    destination: 'Berryessa/North San Jose',
+    minutes: 8,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-yellow',
+    destination: 'Antioch',
+    minutes: 12,
+    live: false,
+  ),
+];
+
+const _peninsulaDepartures = [
+  BartDeparture(
+    line: 'bart-yellow',
+    destination: 'Antioch',
+    minutes: 6,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-red',
+    destination: 'Richmond',
+    minutes: 14,
+    live: false,
+  ),
+];
+
+const _coliseumDepartures = [
+  BartDeparture(
+    line: oakAirportConnectorLineId,
+    destination: 'Oakland Airport',
+    minutes: oakAirportConnectorMinutes,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-orange',
+    destination: 'Richmond',
+    minutes: 6,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-green',
+    destination: 'Berryessa/North San Jose',
+    minutes: 11,
+    live: false,
+  ),
+];
+
+const _oakConnectorDepartures = [
+  BartDeparture(
+    line: oakAirportConnectorLineId,
+    destination: 'Coliseum',
+    minutes: 3,
+    live: false,
+  ),
+  BartDeparture(
+    line: oakAirportConnectorLineId,
+    destination: 'Coliseum',
+    minutes: oakAirportConnectorMinutes,
+    live: false,
+  ),
+  BartDeparture(
+    line: oakAirportConnectorLineId,
+    destination: 'Coliseum',
+    minutes: 15,
+    live: false,
+  ),
+];
+
+const _defaultBartDepartures = [
+  BartDeparture(
+    line: 'bart-yellow',
+    destination: 'SFO / Millbrae',
+    minutes: 5,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-orange',
+    destination: 'Richmond',
+    minutes: 9,
+    live: false,
+  ),
+  BartDeparture(
+    line: 'bart-blue',
+    destination: 'Dublin/Pleasanton',
+    minutes: 14,
+    live: false,
+  ),
+];
 
 int _parseClock(String value) {
   final match = RegExp(r'(\d{1,2}):(\d{2})').firstMatch(value);

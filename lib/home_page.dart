@@ -8,10 +8,10 @@ import 'package:genui_template/widgets/widgets.dart';
 
 const List<String> _suggestions = [
   'Next trains from Embarcadero',
+  'Live Muni departures at stop 15184',
+  'Next AC Transit buses at my stop',
   'Departures at 12th St Oakland',
   'Downtown Berkeley to SFO',
-  'Get me from Coliseum to OAK airport',
-  'Is the Yellow Line delayed?',
 ];
 
 class HomePage extends StatefulWidget {
@@ -53,10 +53,7 @@ class _HomePageState extends State<HomePage> {
     final request = text.trim();
     if (request.isEmpty) return;
 
-    final now = TimeOfDay.now();
-    _session.sendMessage(
-      'Current time is ${_formatTimeOfDay(now)}. Request: $request',
-    );
+    _session.sendMessage(request);
     _textController.clear();
   }
 
@@ -159,11 +156,11 @@ class _SurfacePane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isProcessing) return const _TransitLoadingState();
+
     final surfaceId = latestSurfaceId;
     if (surfaceId == null) {
-      return isProcessing
-          ? const _TransitLoadingState()
-          : const _TransitEmptyState();
+      return const _TransitEmptyState();
     }
 
     return ColoredBox(
@@ -220,8 +217,8 @@ class _TransitEmptyState extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Ask for BART, Muni Metro, or Caltrain trips, departures, '
-                  'and line status in plain language.',
+                  'Ask for BART, Muni, Caltrain, bus, ferry, or VTA trips, '
+                  'departures, and line status in plain language.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -274,10 +271,4 @@ class _TransitLoadingState extends StatelessWidget {
       ),
     );
   }
-}
-
-String _formatTimeOfDay(TimeOfDay time) {
-  final hour = time.hour.toString().padLeft(2, '0');
-  final minute = time.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
 }

@@ -159,17 +159,32 @@ final CatalogItem transitLiveDeparturesItem = CatalogItem(
   name: 'TransitLiveDepartures',
   dataSchema: S.object(
     description:
-        'A live BART departure board fetched from BART for a known station.',
+        'A live departure board fetched from BART or 511 for a known stop.',
     properties: {
+      'source': S.string(
+        description: 'Live data source.',
+        enumValues: ['bart', '511'],
+      ),
       'stationName': S.string(description: 'Human-readable BART station name.'),
       'stationAbbr': S.string(
         description: 'Four-letter BART station abbreviation, e.g. EMBR.',
       ),
+      'agency': S.string(
+        description: '511 agency/operator id, e.g. SF, CT, AC, VT, SM, GG.',
+      ),
+      'agencyName': S.string(
+        description: '511 agency/operator name when id is unknown.',
+      ),
+      'stopCode': S.string(description: '511 stop code.'),
+      'stopName': S.string(
+        description: 'Exact 511 stop name when stop code is unknown.',
+      ),
+      'lineFilter': S.string(description: 'Optional exact route or line name.'),
     },
-    required: ['stationAbbr'],
+    required: [],
   ),
   widgetBuilder: (context) {
-    return LiveBartDeparturesBoard.fromJson(context.data as JsonMap);
+    return LiveTransitDeparturesBoard.fromJson(context.data as JsonMap);
   },
   exampleData: [
     () => jsonEncode([
@@ -178,6 +193,15 @@ final CatalogItem transitLiveDeparturesItem = CatalogItem(
         'component': 'TransitLiveDepartures',
         'stationName': 'Embarcadero',
         'stationAbbr': 'EMBR',
+      },
+    ]),
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitLiveDepartures',
+        'source': '511',
+        'agency': 'SF',
+        'stopCode': '15184',
       },
     ]),
   ],
@@ -265,6 +289,10 @@ final Schema _departureSchema = S.object(
     'plat': S.string(description: 'Optional platform.'),
     'mins': S.integer(description: 'Minutes until departure.'),
     'live': S.boolean(description: 'Whether this entry is live.'),
+    'lineLabel': S.string(description: 'Optional route label from live data.'),
+    'operatorName': S.string(description: 'Optional operator name.'),
+    'operatorId': S.string(description: 'Optional operator id.'),
+    'mode': S.string(description: 'Optional transit mode.'),
   },
   required: ['line', 'dest', 'mins'],
 );
@@ -274,11 +302,12 @@ Prefer the custom Bay Area transit components over generic cards or text:
 - Use TransitSummary once at the top of each answer.
 - Use TransitJourney for trip options.
 - Use TransitLiveDepartures for live BART departure requests when you know the BART abbreviation.
-- Use TransitDepartures for planned Muni/Caltrain departures or BART departures only when live station data is not applicable.
+- Use TransitLiveDepartures with source "511" for live non-BART departures only when you know a 511 agency plus stop code, or an exact agency and stop name.
+- Use TransitDepartures for planned estimates only when a live source cannot be resolved. Never fabricate live rows.
 - Use TransitAlert for service status.
 - Use TransitNote only for brief extra context.
 
 Line ids must be one of: bart-yellow, bart-orange, bart-green, bart-blue,
 bart-red, bart-beige, muni-j, muni-k, muni-l, muni-m, muni-n, muni-t,
-caltrain.
+caltrain, regional-bus, regional-rail, regional-ferry, regional-transit.
 ''';

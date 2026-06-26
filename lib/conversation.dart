@@ -20,7 +20,8 @@ class GenUiSession {
   GenUiSession({
     required ModelClient Function({required String systemPrompt})
     modelClientBuilder,
-  }) {
+    DateTime Function()? currentTime,
+  }) : _currentTime = currentTime ?? DateTime.now {
     /// The catalog defines the surfaces the model can render and how to
     /// render them.
     final catalog = buildCatalog();
@@ -47,7 +48,7 @@ class GenUiSession {
     _transport = A2uiTransportAdapter(
       onSend: (message) async {
         await _modelClient
-            .sendMessage(_promptFor(message))
+            .sendMessage(_promptFor(message, currentTime: _currentTime()))
             .forEach(_transport.addChunk);
       },
     );
@@ -63,6 +64,7 @@ class GenUiSession {
   late final ModelClient _modelClient;
   late final A2uiTransportAdapter _transport;
   late final Conversation _conversation;
+  final DateTime Function() _currentTime;
 
   /// The raw A2UI JSON of the current (or most recent) model turn, updated live
   /// as the response streams in.
@@ -88,12 +90,29 @@ class GenUiSession {
   /// Forwarding only [ChatMessage.text] would send the model an empty turn,
   /// so it loses all context for the interaction and replies with plain text
   /// instead of new A2UI. Falling back to the interaction JSON keeps the model
-  /// aware of what the user did.
-  static String _promptFor(ChatMessage message) {
-    if (message.text.trim().isNotEmpty) return message.text;
+  /// aware of what the user did. The same current-time wrapper is applied to
+  /// both paths so typed requests and surface interactions get matching
+  /// temporal context.
+  static String _promptFor(
+    ChatMessage message, {
+    required DateTime currentTime,
+  }) {
+    final request = _requestTextFor(message);
+
+    return 'Current time is ${_formatTime(currentTime)}. Request: $request';
+  }
+
+  static String _requestTextFor(ChatMessage message) {
+    if (message.text.trim().isNotEmpty) return message.text.trim();
     return message.parts.uiInteractionParts
         .map((part) => part.interaction)
         .join('\n');
+  }
+
+  static String _formatTime(DateTime time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   /// Looks up the render context for a surface by its id.

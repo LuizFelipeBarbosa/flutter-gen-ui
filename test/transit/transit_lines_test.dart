@@ -14,15 +14,19 @@ void main() {
       expect(resolveBartStation('Downtown Berkeley to SFO')?.abbr, 'DBRK');
       expect(resolveBartStation('next trains from SFO')?.abbr, 'SFIA');
     });
+
+    test('resolves station names from abbreviations', () {
+      final station = bartStationForAbbr('EMBR');
+
+      expect(station?.name, 'Embarcadero');
+      expect(station?.abbr, 'EMBR');
+    });
   });
 
-  group('looksLikeBartDepartureQuery', () {
-    test('recognizes live-board style requests', () {
-      expect(
-        looksLikeBartDepartureQuery('Next trains from Embarcadero'),
-        isTrue,
-      );
-      expect(looksLikeBartDepartureQuery('Downtown Berkeley to SFO'), isFalse);
-    });
+  test('includes generic 511 line styles', () {
+    expect(lineFor(regionalBusLineId).label, 'Bus');
+    expect(lineFor(regionalRailLineId).label, 'Rail');
+    expect(lineFor(regionalFerryLineId).label, 'Ferry');
+    expect(lineFor(regionalTransitLineId).label, 'Line');
   });
 }

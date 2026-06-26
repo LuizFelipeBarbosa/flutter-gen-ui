@@ -30,6 +30,13 @@ class BartStation {
 }
 
 const String defaultBartApiKey = 'MW9S-E7SL-26DU-VV8V';
+const String oakAirportConnectorLineId = 'bart-beige';
+const int oakAirportConnectorMinutes = 9;
+const int oakAirportConnectorStops = 1;
+const String regionalBusLineId = 'regional-bus';
+const String regionalRailLineId = 'regional-rail';
+const String regionalFerryLineId = 'regional-ferry';
+const String regionalTransitLineId = 'regional-transit';
 
 const Map<String, TransitLine> transitLines = {
   'bart-yellow': TransitLine(
@@ -77,8 +84,8 @@ const Map<String, TransitLine> transitLines = {
     textColor: Colors.white,
     shape: TransitBulletShape.square,
   ),
-  'bart-beige': TransitLine(
-    id: 'bart-beige',
+  oakAirportConnectorLineId: TransitLine(
+    id: oakAirportConnectorLineId,
     operatorName: 'BART',
     label: 'OAK Airport',
     shortLabel: '',
@@ -149,6 +156,42 @@ const Map<String, TransitLine> transitLines = {
     textColor: Color(0xFFD6001C),
     shape: TransitBulletShape.square,
   ),
+  regionalBusLineId: TransitLine(
+    id: regionalBusLineId,
+    operatorName: 'Transit',
+    label: 'Bus',
+    shortLabel: '',
+    color: Color(0xFF4F8F78),
+    textColor: Colors.white,
+    shape: TransitBulletShape.circle,
+  ),
+  regionalRailLineId: TransitLine(
+    id: regionalRailLineId,
+    operatorName: 'Transit',
+    label: 'Rail',
+    shortLabel: '',
+    color: Color(0xFF5F78B8),
+    textColor: Colors.white,
+    shape: TransitBulletShape.square,
+  ),
+  regionalFerryLineId: TransitLine(
+    id: regionalFerryLineId,
+    operatorName: 'Transit',
+    label: 'Ferry',
+    shortLabel: '',
+    color: Color(0xFF0086A8),
+    textColor: Colors.white,
+    shape: TransitBulletShape.square,
+  ),
+  regionalTransitLineId: TransitLine(
+    id: regionalTransitLineId,
+    operatorName: 'Transit',
+    label: 'Line',
+    shortLabel: '',
+    color: Color(0xFF7C8997),
+    textColor: Color(0xFF0C1622),
+    shape: TransitBulletShape.square,
+  ),
 };
 
 const TransitLine fallbackTransitLine = TransitLine(
@@ -169,7 +212,16 @@ const Map<String, String> bartColorLineIds = {
   'GREEN': 'bart-green',
   'BLUE': 'bart-blue',
   'RED': 'bart-red',
-  'BEIGE': 'bart-beige',
+  'BEIGE': oakAirportConnectorLineId,
+};
+
+const Map<String, String> muniMetroLineIds = {
+  'J': 'muni-j',
+  'K': 'muni-k',
+  'L': 'muni-l',
+  'M': 'muni-m',
+  'N': 'muni-n',
+  'T': 'muni-t',
 };
 
 final List<MapEntry<String, BartStation>> bartStationAliases = [
@@ -346,10 +398,10 @@ BartStation? resolveBartStation(String text) {
   return null;
 }
 
-bool looksLikeBartDepartureQuery(String text) {
-  final query = text.toLowerCase();
-  return RegExp(
-    '(departures?|next trains?|next bart|leaving from|trains? from|'
-    "when'?s the next|when is the next)",
-  ).hasMatch(query);
+BartStation? bartStationForAbbr(String abbr) {
+  final normalized = abbr.toUpperCase().replaceAll(RegExp('[^A-Z0-9]'), '');
+  for (final alias in bartStationAliases) {
+    if (alias.value.abbr == normalized) return alias.value;
+  }
+  return null;
 }
