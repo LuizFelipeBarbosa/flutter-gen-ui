@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui_template/catalog.dart';
+import 'package:genui_template/prompt.dart';
+import 'package:genui_template/transit/transit_catalog.dart';
 
 void main() {
   test('buildCatalog includes transit components', () {
@@ -9,7 +11,35 @@ void main() {
     expect(itemNames, contains('TransitJourney'));
     expect(itemNames, contains('TransitDepartures'));
     expect(itemNames, contains('TransitLiveDepartures'));
+    expect(itemNames, contains('TransitExploreBranch'));
+    expect(itemNames, contains('TransitPlaceSearch'));
     expect(itemNames, contains('TransitAlert'));
     expect(itemNames, contains('TransitNote'));
+  });
+
+  test('transit instructions keep bus rides separate from walk legs', () {
+    expect(transitCatalogRules, contains('line "regional-bus"'));
+    expect(transitCatalogRules, contains('Walk legs are only true foot paths'));
+    expect(systemPrompt, contains('Bus connections need type "ride"'));
+    expect(systemPrompt, contains('bus connections as walk legs'));
+    expect(systemPrompt, contains('Walk legs are only true foot paths'));
+  });
+
+  test('transit instructions keep Google Places POIs in cards', () {
+    expect(transitCatalogRules, contains('TransitPlaceSearch'));
+    expect(transitCatalogRules, contains('cards/lists'));
+    expect(transitCatalogRules, contains('never ask'));
+    expect(systemPrompt, contains('TransitPlaceSearch uses Google Places'));
+    expect(systemPrompt, contains('Do not request Google Places results'));
+  });
+
+  test('TransitPlaceSearch requires a concrete search query', () {
+    final requiredFields = transitPlaceSearchItem.dataSchema.required;
+
+    expect(requiredFields, containsAll(['component', 'title', 'query']));
+    expect(transitCatalogRules, contains('Always include a'));
+    expect(transitCatalogRules, contains('non-empty query'));
+    expect(systemPrompt, contains('Every TransitPlaceSearch must include'));
+    expect(systemPrompt, contains('non-empty query'));
   });
 }

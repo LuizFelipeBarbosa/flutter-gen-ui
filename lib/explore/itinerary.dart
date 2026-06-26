@@ -55,6 +55,39 @@ class ItineraryStop {
     );
   }
 
+  factory ItineraryStop.fromJson(Map<String, Object?> json) {
+    final localId = _string(json['localId']) ?? _string(json['id']);
+    final title = _string(json['title']);
+    if (localId == null || title == null) {
+      throw const FormatException('Itinerary stop requires localId and title');
+    }
+
+    return ItineraryStop(
+      localId: localId,
+      placeId: _string(json['placeId']),
+      title: title,
+      address: _string(json['address']),
+      category: _string(json['category']),
+      durationMinutes: _int(json['durationMinutes'], fallback: 60),
+      latitude: _double(json['latitude']),
+      longitude: _double(json['longitude']),
+      googleMapsUri: _uri(json['googleMapsUri']),
+      notes: _string(json['notes']),
+    );
+  }
+
+  static ItineraryStop? tryFromJson(Object? value) {
+    if (value is! Map) return null;
+
+    try {
+      return ItineraryStop.fromJson(
+        value.map((key, value) => MapEntry(key.toString(), value)),
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
   final String localId;
   final String? placeId;
   final String title;
@@ -85,6 +118,46 @@ class ItineraryStop {
       'googleMapsUri': googleMapsUri?.toString(),
       'notes': notes,
     }..removeWhere((_, value) => value == null);
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'localId': localId,
+      'placeId': placeId,
+      'title': title,
+      'address': address,
+      'category': category,
+      'durationMinutes': durationMinutes,
+      'latitude': latitude,
+      'longitude': longitude,
+      'googleMapsUri': googleMapsUri?.toString(),
+      'notes': notes,
+    }..removeWhere((_, value) => value == null);
+  }
+
+  String toPromptRow(int index) {
+    final details = [
+      title,
+      ?category,
+      ?address,
+      '$durationMinutes min',
+    ].join(' | ');
+    return '$index. $details';
+  }
+
+  String toTransitPromptRow(int index) {
+    final coordinateLabel = latitude == null || longitude == null
+        ? null
+        : 'coords ${latitude!.toStringAsFixed(5)},'
+              '${longitude!.toStringAsFixed(5)}';
+    final details = [
+      title,
+      ?address,
+      ?category,
+      '$durationMinutes min',
+      ?coordinateLabel,
+    ].join(' | ');
+    return '$index. $details';
   }
 }
 
@@ -123,6 +196,17 @@ class ItineraryController extends ValueNotifier<List<ItineraryStop>> {
     value = const [];
   }
 
+  void replaceAll(Iterable<ItineraryStop> stops) {
+    final keys = <String>{};
+    final uniqueStops = <ItineraryStop>[];
+    for (final stop in stops) {
+      if (keys.add(stop.dedupeKey)) uniqueStops.add(stop);
+    }
+
+    _nextId = _nextLocalIdAfter(uniqueStops);
+    value = List.unmodifiable(uniqueStops);
+  }
+
   void move(String localId, int delta) {
     final current = [...value];
     final index = current.indexWhere((stop) => stop.localId == localId);
@@ -142,19 +226,48 @@ class ItineraryController extends ValueNotifier<List<ItineraryStop>> {
 
     final rows = <String>[];
     for (var i = 0; i < value.length; i++) {
-      final stop = value[i];
-      final details = [
-        stop.title,
-        if (stop.category != null) stop.category,
-        if (stop.address != null) stop.address,
-        '${stop.durationMinutes} min',
-      ].join(' | ');
-      rows.add('${i + 1}. $details');
+      rows.add(value[i].toPromptRow(i + 1));
     }
     return 'Itinerary: ${rows.join('; ')}. Avoid duplicate stops.';
   }
 
+  String toTransitPromptContext() {
+    if (value.isEmpty) {
+      return 'Saved itinerary: empty. Do not route saved stops unless the '
+          'user provides destinations.';
+    }
+
+    final rows = <String>[];
+    for (var i = 0; i < value.length; i++) {
+      rows.add(value[i].toTransitPromptRow(i + 1));
+    }
+    return 'Saved itinerary stops in order: ${rows.join('; ')}. When the '
+        'user asks to route the saved itinerary, preserve this order, use '
+        'coordinates only as spatial context, and render Google Places POIs '
+        'as cards/lists rather than map markers.';
+  }
+
   String _createLocalId() => 'stop-${_nextId++}';
+}
+
+List<ItineraryStop> itineraryStopsFromJson(Object? value) {
+  if (value is! List) return const [];
+
+  return [
+    for (final item in value) ?ItineraryStop.tryFromJson(item),
+  ];
+}
+
+int _nextLocalIdAfter(List<ItineraryStop> stops) {
+  var maxId = 0;
+  for (final stop in stops) {
+    final match = RegExp(r'^stop-(\d+)$').firstMatch(stop.localId);
+    if (match == null) continue;
+
+    final id = int.tryParse(match.group(1) ?? '');
+    if (id != null && id > maxId) maxId = id;
+  }
+  return maxId + 1;
 }
 
 String _normalize(String value) {

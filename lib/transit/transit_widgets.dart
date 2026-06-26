@@ -1,11 +1,34 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:genui/genui.dart';
+import 'package:genui_template/explore/explore_widgets.dart' as explore_widgets;
 import 'package:genui_template/transit/_json.dart' as json_value;
 import 'package:genui_template/transit/bart_departures_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
 import 'package:genui_template/transit/transit_lines.dart';
+
+class TransitRouteSelectionScope extends InheritedWidget {
+  const TransitRouteSelectionScope({
+    required this.onJourneySelected,
+    required super.child,
+    super.key,
+  });
+
+  final ValueChanged<TransitJourney> onJourneySelected;
+
+  static TransitRouteSelectionScope? maybeOf(BuildContext context) {
+    return context.getInheritedWidgetOfExactType<TransitRouteSelectionScope>();
+  }
+
+  void selectJourney(TransitJourney journey) => onJourneySelected(journey);
+
+  @override
+  bool updateShouldNotify(TransitRouteSelectionScope oldWidget) {
+    return oldWidget.onJourneySelected != onJourneySelected;
+  }
+}
 
 /// The lead-in card: the assistant's one-line answer for a transit request,
 /// marked with the "generative" sparkle so it reads as a composed result.
@@ -73,6 +96,138 @@ class TransitSummaryCard extends StatelessWidget {
   }
 }
 
+class TransitExploreBranch extends StatelessWidget {
+  const TransitExploreBranch({
+    required this.title,
+    required this.query,
+    required this.onAction,
+    this.subtitle = '',
+    this.badge,
+    this.destination,
+    this.actionName = 'open_explore',
+    super.key,
+  });
+
+  factory TransitExploreBranch.fromContext(CatalogItemContext context) {
+    final json = json_value.map(context.data);
+    return TransitExploreBranch(
+      title: _string(json['title'], 'Explore nearby'),
+      subtitle: _string(json['subtitle']),
+      badge: _nullableString(json['badge']),
+      destination: _nullableString(json['destination']),
+      query: _string(json['query']),
+      actionName: _string(json['actionName'], 'open_explore'),
+      onAction: (name, actionContext) {
+        context.dispatchEvent(
+          UserActionEvent(
+            name: name,
+            sourceComponentId: context.id,
+            context: actionContext,
+          ),
+        );
+      },
+    );
+  }
+
+  final String title;
+  final String subtitle;
+  final String? badge;
+  final String? destination;
+  final String query;
+  final String actionName;
+  final void Function(String actionName, JsonMap context) onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final actionContext = <String, Object?>{
+      'title': title,
+      'query': query,
+      'destination': destination,
+    }..removeWhere((_, value) => value == null);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => onAction(actionName, actionContext),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(15),
+          decoration: bayHopCardDecoration(radius: 18),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: BayHopColors.aiBlue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.travel_explore_rounded,
+                  color: BayHopColors.aiBlue,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: BayHopText.body(
+                              size: 14.5,
+                              weight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 8),
+                          BayHopChip(label: badge!),
+                        ],
+                      ],
+                    ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: BayHopText.body(
+                          size: 12.5,
+                          color: BayHopColors.muted,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: BayHopColors.faint,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+abstract final class TransitPlaceSearch {
+  static Widget fromContext(CatalogItemContext context) {
+    return explore_widgets.ExplorePlaceSearch.fromContext(context);
+  }
+}
+
 /// A single trip option, rendered as BayHop's featured-route card: a hero
 /// duration, a [BayHopJourneyStrip], and an expandable step-by-step timeline.
 class TransitJourneyCard extends StatefulWidget {
@@ -90,6 +245,13 @@ class TransitJourneyCard extends StatefulWidget {
 
 class _TransitJourneyCardState extends State<TransitJourneyCard> {
   late bool _isOpen = widget.journey.recommended;
+  String? _lastAutoSelectedJourneyKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleRecommendedRouteSelection();
+  }
 
   @override
   void didUpdateWidget(covariant TransitJourneyCard oldWidget) {
@@ -97,7 +259,23 @@ class _TransitJourneyCardState extends State<TransitJourneyCard> {
     if (_journeyStateKey(oldWidget.journey) !=
         _journeyStateKey(widget.journey)) {
       _isOpen = widget.journey.recommended;
+      _scheduleRecommendedRouteSelection();
     }
+  }
+
+  void _scheduleRecommendedRouteSelection() {
+    if (!widget.journey.recommended) return;
+
+    final key = _journeyStateKey(widget.journey);
+    if (_lastAutoSelectedJourneyKey == key) return;
+    _lastAutoSelectedJourneyKey = key;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      TransitRouteSelectionScope.maybeOf(context)?.selectJourney(
+        widget.journey,
+      );
+    });
   }
 
   @override
@@ -113,7 +291,10 @@ class _TransitJourneyCardState extends State<TransitJourneyCard> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: () => setState(() => _isOpen = !_isOpen),
+        onTap: () {
+          TransitRouteSelectionScope.maybeOf(context)?.selectJourney(journey);
+          setState(() => _isOpen = !_isOpen);
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
