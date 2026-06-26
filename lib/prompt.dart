@@ -64,7 +64,9 @@ Key stations, in order:
 - Useful bus/walk anchors for map context: Salesforce Transit Center, Ferry
   Building, Fisherman's Wharf/Pier 39, Golden Gate Park/9th & Irving,
   Dolores Park, Presidio Transit Center, UC Berkeley, Stanford, and San Jose
-  Airport.
+  Airport. For regional bus/ferry trips, also use city anchors like Petaluma,
+  Santa Rosa, San Rafael Transit Center, Sausalito, Mill Valley, Marin City,
+  Novato, Vallejo Ferry Terminal, Napa, and Sonoma.
 
 Valid transfers:
 - BART between lines: MacArthur for Yellow/Orange/Red; Bay Fair, Coliseum,

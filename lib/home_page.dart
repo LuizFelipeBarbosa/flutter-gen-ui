@@ -5,10 +5,16 @@ import 'package:genui/genui.dart';
 import 'package:genui_template/conversation.dart';
 import 'package:genui_template/location/location.dart';
 import 'package:genui_template/model/inception_model_client.dart';
+import 'package:genui_template/model/model_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
 import 'package:genui_template/transit/transit_route_geometry.dart';
 import 'package:genui_template/transit/transit_widgets.dart';
+
+typedef HomeModelClientBuilder =
+    ModelClient Function({
+      required String systemPrompt,
+    });
 
 const List<_Suggestion> _suggestions = [
   _Suggestion(
@@ -41,11 +47,13 @@ class HomePage extends StatefulWidget {
   const HomePage({
     this.locationController,
     this.onOpenExplore,
+    this.modelClientBuilder,
     super.key,
   });
 
   final UserLocationController? locationController;
   final ValueChanged<String>? onOpenExplore;
+  final HomeModelClientBuilder? modelClientBuilder;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -76,7 +84,7 @@ class _HomePageState extends State<HomePage> {
       onOpenExplore: widget.onOpenExplore,
     );
     _session = GenUiSession(
-      modelClientBuilder: InceptionModelClient.new,
+      modelClientBuilder: widget.modelClientBuilder ?? InceptionModelClient.new,
       contextProvider: _locationContextForModel,
     );
 
@@ -539,6 +547,7 @@ class _IntroResult extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _SuggestionTile(
+              key: ValueKey('intro-suggestion-${suggestion.query}'),
               suggestion: suggestion,
               onTap: () => onSuggestion(suggestion.query),
             ),
@@ -674,79 +683,81 @@ class _BayHopSearchBarState extends State<_BayHopSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BayHopFrostedSurface(
-          borderRadius: const BorderRadius.all(Radius.circular(999)),
-          blur: 18,
-          opacity: 0.64,
-          borderOpacity: 0.75,
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x29121C26),
-              blurRadius: 20,
-              offset: Offset(0, 6),
-            ),
-            BoxShadow(
-              color: Color(0x1A121C26),
-              blurRadius: 3,
-              offset: Offset(0, 1),
-            ),
-          ],
-          child: SizedBox(
-            height: 54,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.search_rounded,
-                    size: 20,
-                    color: Color(0xFF4F585F),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: TextField(
-                      controller: widget.controller,
-                      focusNode: _focus,
-                      enabled: !widget.isProcessing,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: _pick,
-                      style: BayHopText.body(size: 16),
-                      decoration: InputDecoration.collapsed(
-                        hintText: 'Search BART, Muni, Caltrain…',
-                        hintStyle: BayHopText.body(
-                          size: 16,
-                          color: BayHopColors.muted,
+    return TextFieldTapRegion(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          BayHopFrostedSurface(
+            borderRadius: const BorderRadius.all(Radius.circular(999)),
+            blur: 18,
+            opacity: 0.64,
+            borderOpacity: 0.75,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x29121C26),
+                blurRadius: 20,
+                offset: Offset(0, 6),
+              ),
+              BoxShadow(
+                color: Color(0x1A121C26),
+                blurRadius: 3,
+                offset: Offset(0, 1),
+              ),
+            ],
+            child: SizedBox(
+              height: 54,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.search_rounded,
+                      size: 20,
+                      color: Color(0xFF4F585F),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: TextField(
+                        controller: widget.controller,
+                        focusNode: _focus,
+                        enabled: !widget.isProcessing,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: _pick,
+                        style: BayHopText.body(size: 16),
+                        decoration: InputDecoration.collapsed(
+                          hintText: 'Search BART, Muni, Caltrain…',
+                          hintStyle: BayHopText.body(
+                            size: 16,
+                            color: BayHopColors.muted,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE1E8ED),
-                      shape: BoxShape.circle,
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE1E8ED),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        size: 22,
+                        color: Color(0xFF9BA7AF),
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.person_rounded,
-                      size: 22,
-                      color: Color(0xFF9BA7AF),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        if (_focus.hasFocus) ...[
-          const SizedBox(height: 10),
-          _SearchSuggestions(onPick: _pick),
+          if (_focus.hasFocus) ...[
+            const SizedBox(height: 10),
+            _SearchSuggestions(onPick: _pick),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -786,6 +797,7 @@ class _SearchSuggestions extends StatelessWidget {
             ),
             for (final suggestion in _suggestions)
               _SuggestionTile(
+                key: ValueKey('search-suggestion-${suggestion.query}'),
                 suggestion: suggestion,
                 onTap: () => onPick(suggestion.query),
               ),
@@ -797,7 +809,11 @@ class _SearchSuggestions extends StatelessWidget {
 }
 
 class _SuggestionTile extends StatelessWidget {
-  const _SuggestionTile({required this.suggestion, required this.onTap});
+  const _SuggestionTile({
+    required this.suggestion,
+    required this.onTap,
+    super.key,
+  });
 
   final _Suggestion suggestion;
   final VoidCallback onTap;

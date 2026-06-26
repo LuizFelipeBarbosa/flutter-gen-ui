@@ -316,6 +316,49 @@ void main() {
       );
     });
 
+    test('builds generated Berkeley to Petaluma bus route geometry', () {
+      final overlay = buildTransitJourneyRouteOverlay(
+        _journey(
+          from: 'Berkeley (BART)',
+          to: 'Petaluma',
+          changes: 1,
+          legs: const [
+            {
+              'type': 'ride',
+              'line': 'bart-red',
+              'from': 'Berkeley (BART)',
+              'to': 'Embarcadero',
+              'mins': 22,
+              'stops': 10,
+            },
+            {'type': 'walk', 'to': 'Ferry Building', 'mins': 5},
+            {
+              'type': 'ride',
+              'line': regionalBusLineId,
+              'from': 'Ferry Building',
+              'to': 'Petaluma',
+              'mins': 45,
+            },
+          ],
+        ),
+      );
+
+      expect(overlay, isNotNull);
+      expect(overlay!.segments.map((segment) => segment.label), [
+        'Red Line',
+        'Walk',
+        'Bus',
+      ]);
+      expect(
+        overlay.segments.last.points.last.latitude,
+        closeTo(38.2324, 0.0001),
+      );
+      expect(
+        overlay.markers.map((marker) => marker.label),
+        contains('Petaluma'),
+      );
+    });
+
     test('skips unresolved bus and walk endpoints without failing route', () {
       final overlay = buildTransitJourneyRouteOverlay(
         _journey(

@@ -365,6 +365,46 @@ const _routeAnchors = {
     label: 'San Jose Airport',
     coordinate: LocationCoordinate(latitude: 37.3639, longitude: -121.9289),
   ),
+  'petaluma': _RoutePoint(
+    label: 'Petaluma',
+    coordinate: LocationCoordinate(latitude: 38.2324, longitude: -122.6404),
+  ),
+  'santa-rosa': _RoutePoint(
+    label: 'Santa Rosa',
+    coordinate: LocationCoordinate(latitude: 38.438, longitude: -122.7141),
+  ),
+  'san-rafael-transit-center': _RoutePoint(
+    label: 'San Rafael Transit Center',
+    coordinate: LocationCoordinate(latitude: 37.9718, longitude: -122.5228),
+  ),
+  'sausalito': _RoutePoint(
+    label: 'Sausalito',
+    coordinate: LocationCoordinate(latitude: 37.856, longitude: -122.4783),
+  ),
+  'mill-valley': _RoutePoint(
+    label: 'Mill Valley',
+    coordinate: LocationCoordinate(latitude: 37.906, longitude: -122.5449),
+  ),
+  'marin-city': _RoutePoint(
+    label: 'Marin City',
+    coordinate: LocationCoordinate(latitude: 37.8685, longitude: -122.5091),
+  ),
+  'novato': _RoutePoint(
+    label: 'Novato',
+    coordinate: LocationCoordinate(latitude: 38.1074, longitude: -122.5697),
+  ),
+  'vallejo-ferry-terminal': _RoutePoint(
+    label: 'Vallejo Ferry Terminal',
+    coordinate: LocationCoordinate(latitude: 38.0997, longitude: -122.2624),
+  ),
+  'napa': _RoutePoint(
+    label: 'Napa',
+    coordinate: LocationCoordinate(latitude: 38.2975, longitude: -122.2869),
+  ),
+  'sonoma': _RoutePoint(
+    label: 'Sonoma',
+    coordinate: LocationCoordinate(latitude: 38.2919, longitude: -122.458),
+  ),
 };
 
 const _routeAnchorAliases = {
@@ -396,6 +436,26 @@ const _routeAnchorAliases = {
   'san jose airport': 'san-jose-airport',
   'sjc': 'san-jose-airport',
   'mineta san jose airport': 'san-jose-airport',
+  'petaluma': 'petaluma',
+  'downtown petaluma': 'petaluma',
+  'petaluma transit mall': 'petaluma',
+  'santa rosa': 'santa-rosa',
+  'downtown santa rosa': 'santa-rosa',
+  'santa rosa transit mall': 'santa-rosa',
+  'san rafael': 'san-rafael-transit-center',
+  'san rafael transit center': 'san-rafael-transit-center',
+  'sausalito': 'sausalito',
+  'sausalito ferry landing': 'sausalito',
+  'mill valley': 'mill-valley',
+  'marin city': 'marin-city',
+  'novato': 'novato',
+  'vallejo': 'vallejo-ferry-terminal',
+  'vallejo ferry': 'vallejo-ferry-terminal',
+  'vallejo ferry terminal': 'vallejo-ferry-terminal',
+  'napa': 'napa',
+  'downtown napa': 'napa',
+  'sonoma': 'sonoma',
+  'sonoma plaza': 'sonoma',
 };
 
 const _stopAliases = {

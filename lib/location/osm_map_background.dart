@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -142,7 +143,24 @@ class _OsmMapBackgroundState extends State<OsmMapBackground> {
     return '${status.name}:'
         '${center.latitude.toStringAsFixed(4)},'
         '${center.longitude.toStringAsFixed(4)}:'
-        '${overlay?.id ?? 'no-route'}';
+        '${overlay?.id ?? 'no-route'}:'
+        '${_routeSignatureFor(overlay)}';
+  }
+
+  String _routeSignatureFor(MapRouteOverlay? overlay) {
+    if (overlay == null) return 'none';
+    final points = _routePointsFor(overlay);
+    if (points.isEmpty) return 'empty';
+
+    final latitudes = points.map((point) => point.latitude);
+    final longitudes = points.map((point) => point.longitude);
+    return [
+      points.length,
+      latitudes.reduce(math.min).toStringAsFixed(4),
+      latitudes.reduce(math.max).toStringAsFixed(4),
+      longitudes.reduce(math.min).toStringAsFixed(4),
+      longitudes.reduce(math.max).toStringAsFixed(4),
+    ].join(',');
   }
 
   List<Marker> _markersFor(LocationSnapshot snapshot) {
