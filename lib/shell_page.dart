@@ -11,7 +11,12 @@ import 'package:genui_template/location/location.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
 
 class BayHopShellPage extends StatefulWidget {
-  const BayHopShellPage({super.key});
+  const BayHopShellPage({
+    super.key,
+    this.itineraryStore,
+  });
+
+  final ItineraryStore? itineraryStore;
 
   @override
   State<BayHopShellPage> createState() => _BayHopShellPageState();
@@ -25,7 +30,8 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
   late final TransitRouteHandoffController _transitRouteHandoffController =
       TransitRouteHandoffController();
   late final ItineraryController _itineraryController = ItineraryController();
-  late final ItineraryStore _itineraryStore = ItineraryStore();
+  late final ItineraryStore _itineraryStore =
+      widget.itineraryStore ?? ItineraryStore();
   bool _isLoadingItinerary = true;
   var _selectedIndex = 0;
 
@@ -53,13 +59,14 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
       final stops = await _itineraryStore.load();
       if (!mounted) return;
 
-      _isLoadingItinerary = true;
       _itineraryController.replaceAll(stops);
     } on Object catch (error, stackTrace) {
       debugPrint('Failed to load itinerary: $error');
       debugPrintStack(stackTrace: stackTrace);
     } finally {
-      if (mounted) _isLoadingItinerary = false;
+      if (mounted) {
+        setState(() => _isLoadingItinerary = false);
+      }
     }
   }
 
@@ -89,6 +96,17 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingItinerary) {
+      return const Scaffold(
+        backgroundColor: BayHopColors.bgTop,
+        body: Center(
+          child: CircularProgressIndicator(
+            key: ValueKey('itinerary-loading-indicator'),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,

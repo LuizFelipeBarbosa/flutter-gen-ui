@@ -256,11 +256,15 @@ final CatalogItem transitPlaceSearchItem = CatalogItem(
   dataSchema: S.object(
     description:
         'A Google Places-backed POI list for places near a route stop, '
-        'destination, transfer, or saved itinerary area. Results must stay as '
-        'cards/lists, not OSM map markers.',
+        'destination, transfer, or saved itinerary area. Include a non-empty '
+        'query for every search; latitude and longitude only bias the query. '
+        'Results must stay as cards/lists, not OSM map markers.',
     properties: {
       'title': S.string(description: 'Search block title.'),
-      'query': S.string(description: 'Text search query.'),
+      'query': S.string(
+        description:
+            'Required text search query, e.g. coffee near Downtown Berkeley.',
+      ),
       'includedType': S.string(
         description: 'Optional Google Places type, such as cafe or museum.',
       ),
@@ -273,7 +277,7 @@ final CatalogItem transitPlaceSearchItem = CatalogItem(
         description: 'Number of places to show, 1 to 8.',
       ),
     },
-    required: ['title'],
+    required: ['title', 'query'],
   ),
   widgetBuilder: TransitPlaceSearch.fromContext,
   exampleData: [
@@ -390,8 +394,10 @@ Prefer the custom Bay Area transit components over generic cards or text:
 - Use TransitExploreBranch after trip routes when there is useful destination,
   transfer-station, or route-corridor exploration context.
 - Use TransitPlaceSearch for points of interest around a destination, saved
-  itinerary stop, transfer station, or route corridor. Results are cards/lists
-  only; never ask for Google Places POIs as OSM map markers.
+  itinerary stop, transfer station, or route corridor. Always include a
+  non-empty query; latitude and longitude are optional search bias only.
+  Results are cards/lists only; never ask for Google Places POIs as OSM map
+  markers.
 - Use TransitJourney ride legs with line "regional-bus" for bus connections.
   Walk legs are only true foot paths, not bus placeholders.
 - Use TransitLiveDepartures for live BART departure requests when you know the BART abbreviation.

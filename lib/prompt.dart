@@ -140,7 +140,9 @@ Trip rules:
   TransitPlaceSearch sections for nearby coffee, food, parks, museums, views,
   or other POIs around the saved stops or route corridor.
 - TransitPlaceSearch uses Google Places and must render results as cards/lists
-  only. Do not request Google Places results as OSM map markers.
+  only. Every TransitPlaceSearch must include a non-empty query; latitude and
+  longitude are optional search bias only. Do not request Google Places results
+  as OSM map markers.
 
 Status rules:
 - Use TransitAlert cards for delays or service status. If live status is not

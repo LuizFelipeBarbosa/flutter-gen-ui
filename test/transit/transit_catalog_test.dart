@@ -32,4 +32,14 @@ void main() {
     expect(systemPrompt, contains('TransitPlaceSearch uses Google Places'));
     expect(systemPrompt, contains('Do not request Google Places results'));
   });
+
+  test('TransitPlaceSearch requires a concrete search query', () {
+    final requiredFields = transitPlaceSearchItem.dataSchema.required;
+
+    expect(requiredFields, containsAll(['component', 'title', 'query']));
+    expect(transitCatalogRules, contains('Always include a'));
+    expect(transitCatalogRules, contains('non-empty query'));
+    expect(systemPrompt, contains('Every TransitPlaceSearch must include'));
+    expect(systemPrompt, contains('non-empty query'));
+  });
 }
