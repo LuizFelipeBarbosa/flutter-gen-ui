@@ -139,6 +139,114 @@ void main() {
       },
     );
 
+    test('uses local Muni stop codes for 4th and King', () async {
+      final requests = <Uri>[];
+      final client = LiveDeparturesClient(
+        key511: 'test-511-key',
+        now: () => DateTime.parse('2026-06-26T12:00:00Z'),
+        httpClient: MockClient((request) async {
+          requests.add(request.url);
+          if (request.url.path == '/transit/stops') {
+            fail('4th & King should use local stop-code aliases');
+          }
+          return switch (request.url.path) {
+            '/transit/operators' => _jsonResponse({
+              'operators': [
+                {'Id': 'SF', 'Name': 'Muni', 'Monitored': true},
+              ],
+            }),
+            '/transit/lines' => _jsonResponse({
+              'lines': [
+                {'Id': 'N', 'Name': 'N Judah', 'TransportMode': 'tram'},
+                {'Id': 'T', 'Name': 'T Third', 'TransportMode': 'tram'},
+                {'Id': '91', 'Name': '91 Owl', 'TransportMode': 'bus'},
+              ],
+            }),
+            '/transit/StopMonitoring' => _jsonResponse(
+              _siri([
+                _visit(
+                  line: _lineForStopCode(
+                    request.url.queryParameters['stopcode'],
+                  ),
+                  publishedLine: _lineForStopCode(
+                    request.url.queryParameters['stopcode'],
+                  ),
+                  destination: 'Inbound',
+                  stopName: '4th & King',
+                  expectedDeparture: '2026-06-26T12:05:00Z',
+                ),
+              ]),
+            ),
+            _ => http.Response('not found', 404),
+          };
+        }),
+      );
+
+      final board = await client.fetch511Departures(
+        agency: 'SF',
+        stopName: '4th & King',
+      );
+
+      final stopCodes = requests
+          .where((url) => url.path == '/transit/StopMonitoring')
+          .map((url) => url.queryParameters['stopcode'])
+          .toSet();
+      expect(stopCodes, {'15239', '15240', '17166', '17397', '17405'});
+      expect(board.station, '4th & King');
+      expect(board.departures, hasLength(5));
+      expect(
+        board.departures.map((departure) => departure.line).toSet(),
+        containsAll({'muni-n', 'muni-t', regionalBusLineId}),
+      );
+    });
+
+    test('filters local Muni stop-code aliases by line', () async {
+      final requests = <Uri>[];
+      final client = LiveDeparturesClient(
+        key511: 'test-511-key',
+        now: () => DateTime.parse('2026-06-26T12:00:00Z'),
+        httpClient: MockClient((request) async {
+          requests.add(request.url);
+          return switch (request.url.path) {
+            '/transit/operators' => _jsonResponse({
+              'operators': [
+                {'Id': 'SF', 'Name': 'Muni', 'Monitored': true},
+              ],
+            }),
+            '/transit/lines' => _jsonResponse({
+              'lines': [
+                {'Id': 'T', 'Name': 'T Third', 'TransportMode': 'tram'},
+              ],
+            }),
+            '/transit/StopMonitoring' => _jsonResponse(
+              _siri([
+                _visit(
+                  line: 'T',
+                  publishedLine: 'T',
+                  destination: 'Chinatown',
+                  stopName: '4th & King',
+                  expectedDeparture: '2026-06-26T12:05:00Z',
+                ),
+              ]),
+            ),
+            _ => http.Response('not found', 404),
+          };
+        }),
+      );
+
+      await client.fetch511Departures(
+        agency: 'SF',
+        stopName: '4th & King',
+        lineFilter: 'T Third',
+      );
+
+      final stopCodes = requests
+          .where((url) => url.path == '/transit/StopMonitoring')
+          .map((url) => url.queryParameters['stopcode'])
+          .toList();
+      expect(stopCodes, ['17166', '17397']);
+    });
+
     test('maps non-core monitored operators to generic line styles', () async {
       final client = LiveDeparturesClient(
         key511: 'test-511-key',
@@ -297,5 +405,14 @@ Map<String, Object?> _visit({
       'DestinationName': destination,
       'MonitoredCall': call,
     },
+  };
+}
+
+String _lineForStopCode(String? stopCode) {
+  return switch (stopCode) {
+    '15239' || '15240' => 'N',
+    '17166' || '17397' => 'T',
+    '17405' => '91',
+    _ => 'N',
   };
 }

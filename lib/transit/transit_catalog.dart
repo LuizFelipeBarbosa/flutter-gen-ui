@@ -353,6 +353,7 @@ Prefer the custom Bay Area transit components over generic cards or text:
   Walk legs are only true foot paths, not bus placeholders.
 - Use TransitLiveDepartures for live BART departure requests when you know the BART abbreviation.
 - Use TransitLiveDepartures with source "511" for live non-BART departures only when you know a 511 agency plus stop code, or an exact agency and stop name.
+- For Muni at 4th & King, use source "511", agency "SF", and stopName "4th & King".
 - Use TransitDepartures for planned estimates only when a live source cannot be resolved. Never fabricate live rows.
 - Use TransitAlert for service status.
 - Use TransitNote only for brief extra context.

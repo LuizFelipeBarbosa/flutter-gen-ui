@@ -117,10 +117,12 @@ class TransitStopInfo {
   const TransitStopInfo({
     required this.code,
     required this.name,
+    this.lineLabels = const [],
   });
 
   final String code;
   final String name;
+  final List<String> lineLabels;
 }
 
 class LiveDeparturesClient {
@@ -300,25 +302,38 @@ class LiveDeparturesClient {
     _require511Key();
 
     final agency = await _resolveAgency(request.agency, request.agencyName);
-    final stop = await _resolveStop(
+    final stops = await _resolveStops(
       agency.id,
       request.stopCode,
       request.stopName,
+      request.lineFilter,
     );
     final routes = await _routesForAgencyOrEmpty(agency.id);
-    final data = await _getJson(
-      _uri511('/transit/StopMonitoring', {
-        'agency': agency.id,
-        'stopcode': stop.code,
-      }),
-      service: '511 StopMonitoring',
-      buildException: LiveDeparturesException.new,
-    );
 
-    final error = _siriErrorMessage(data);
-    if (error != null) throw LiveDeparturesException(error);
+    final visits = <Map<String, Object?>>[];
+    final stopErrors = <String>[];
+    for (final stop in stops) {
+      final data = await _getJson(
+        _uri511('/transit/StopMonitoring', {
+          'agency': agency.id,
+          'stopcode': stop.code,
+        }),
+        service: '511 StopMonitoring',
+        buildException: LiveDeparturesException.new,
+      );
 
-    final visits = _monitoredStopVisits(data);
+      final error = _siriErrorMessage(data);
+      if (error != null) {
+        stopErrors.add(error);
+        continue;
+      }
+      visits.addAll(_monitoredStopVisits(data));
+    }
+
+    if (visits.isEmpty && stopErrors.isNotEmpty) {
+      throw LiveDeparturesException(stopErrors.first);
+    }
+
     final departures = <BartDeparture>[];
     for (final visit in visits) {
       final journey = json_util.map(visit['MonitoredVehicleJourney']);
@@ -374,11 +389,15 @@ class LiveDeparturesClient {
     departures.sort((a, b) => a.minutes.compareTo(b.minutes));
     if (departures.isEmpty) {
       throw LiveDeparturesException(
-        'No live 511 departures found for ${stop.name}',
+        'No live 511 departures found for ${_stopLabel(stops)}',
       );
     }
 
-    final stationName = _stopNameFromVisits(visits) ?? stop.name;
+    final stationName = stops.length == 1
+        ? _stopNameFromVisits(visits) ?? stops.single.name
+        : _clean(request.stopName).isEmpty
+        ? _stopLabel(stops)
+        : _clean(request.stopName);
     return BartDepartureBoard(
       station: stationName,
       sourceLabel: agency.name,
@@ -590,15 +609,16 @@ class LiveDeparturesClient {
     throw LiveDeparturesException('511 agency "$name" was not found');
   }
 
-  Future<TransitStopInfo> _resolveStop(
+  Future<List<TransitStopInfo>> _resolveStops(
     String agency,
     String? stopCode,
     String? stopName,
+    String? lineFilter,
   ) async {
     final code = _clean(stopCode);
     final name = _clean(stopName);
     if (code.isNotEmpty) {
-      return TransitStopInfo(code: code, name: name.isEmpty ? code : name);
+      return [TransitStopInfo(code: code, name: name.isEmpty ? code : name)];
     }
     if (name.isEmpty) {
       throw const LiveDeparturesException(
@@ -607,6 +627,13 @@ class LiveDeparturesClient {
     }
 
     final needle = _normalizeLookup(name);
+    final localStops = _local511StopsForAgency(
+      agency,
+      name,
+      lineFilter: lineFilter,
+    );
+    if (localStops.isNotEmpty) return localStops;
+
     final matches = [
       for (final stop in await stopsForAgency(agency))
         if (_normalizeLookup(stop.name) == needle ||
@@ -614,7 +641,7 @@ class LiveDeparturesClient {
           stop,
     ];
     final distinctCodes = {for (final stop in matches) stop.code};
-    if (distinctCodes.length == 1) return matches.first;
+    if (distinctCodes.length == 1) return [matches.first];
     if (distinctCodes.length > 1) {
       throw LiveDeparturesException('511 stop "$name" is ambiguous');
     }
@@ -792,6 +819,35 @@ TransitStopInfo? _stopFromJson(Map<String, Object?> json) {
       fallback: code,
     ),
   );
+}
+
+List<TransitStopInfo> _local511StopsForAgency(
+  String agency,
+  String stopName, {
+  String? lineFilter,
+}) {
+  final agencyStops = _local511Stops[_normalizeAgencyId(agency)];
+  if (agencyStops == null) return const [];
+
+  final stops = agencyStops[_normalizeLookup(stopName)] ?? const [];
+  if (stops.isEmpty) return const [];
+
+  final filter = _normalizeLookup(lineFilter ?? '');
+  if (filter.isEmpty) return stops;
+
+  final filtered = [
+    for (final stop in stops)
+      if (stop.lineLabels.any((line) => _normalizeLookup(line) == filter)) stop,
+  ];
+  return filtered.isEmpty ? stops : filtered;
+}
+
+String _stopLabel(List<TransitStopInfo> stops) {
+  if (stops.isEmpty) return 'this stop';
+  if (stops.length == 1) return stops.single.name;
+  final names = {for (final stop in stops) stop.name};
+  if (names.length == 1) return names.single;
+  return names.take(2).join(' / ');
 }
 
 List<Map<String, Object?>> _monitoredStopVisits(Object? data) {
@@ -1032,5 +1088,45 @@ String _normalizeLookup(String value) {
 }
 
 String _clean(String? value) => (value ?? '').trim();
+
+const _sfFourthAndKingStops = [
+  TransitStopInfo(
+    code: '15239',
+    name: 'King St & 4th St',
+    lineLabels: ['N', 'N Judah'],
+  ),
+  TransitStopInfo(
+    code: '15240',
+    name: 'King St & 4th St',
+    lineLabels: ['N', 'N Judah'],
+  ),
+  TransitStopInfo(
+    code: '17166',
+    name: '4th St & King St',
+    lineLabels: ['T', 'T Third'],
+  ),
+  TransitStopInfo(
+    code: '17397',
+    name: '4th St & King St',
+    lineLabels: ['T', 'T Third'],
+  ),
+  TransitStopInfo(
+    code: '17405',
+    name: '4th St & King St',
+    lineLabels: ['91', 'TBUS'],
+  ),
+];
+
+const Map<String, Map<String, List<TransitStopInfo>>> _local511Stops = {
+  'SF': {
+    '4thandking': _sfFourthAndKingStops,
+    '4thking': _sfFourthAndKingStops,
+    '4thstandkingst': _sfFourthAndKingStops,
+    'kingstand4thst': _sfFourthAndKingStops,
+    '4thandkingcaltrain': _sfFourthAndKingStops,
+    'sanfranciscocaltrain': _sfFourthAndKingStops,
+    'sfcaltrain': _sfFourthAndKingStops,
+  },
+};
 
 const Set<String> _internal511OperatorIds = {'5E', '5F', '5O', '5S'};

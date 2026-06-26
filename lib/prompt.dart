@@ -107,6 +107,8 @@ Departure requests:
   and BA for BART in 511. If the exact stop is not known, use planned
   TransitDepartures and add a warning TransitNote instead of pretending data
   is live.
+- For Muni at 4th & King, use agency "SF" and stopName "4th & King"; the app
+  resolves the local station stop-code cluster.
 - For planned Muni, Caltrain, bus, ferry, or VTA departure estimates, use
   TransitDepartures with live false and plausible entries.
 
