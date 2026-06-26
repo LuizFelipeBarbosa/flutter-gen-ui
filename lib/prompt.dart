@@ -18,10 +18,6 @@ be a Column with align "stretch" and children in this order:
 1. One TransitSummary.
 2. One to three TransitJourney cards, one TransitLiveDepartures or
    TransitDepartures board, one or more TransitAlert cards, or a TransitNote.
-3. For trip answers, one to three TransitExploreBranch cards that reference
-   the destination, a transfer station, or the route corridor.
-4. For saved-itinerary or destination exploration, optional TransitPlaceSearch
-   sections for POIs around saved stops, transfers, or the route corridor.
 
 Use these exact line ids:
 - BART distance-based fare about \$2.40-\$16: bart-yellow (Antioch-SFO/Millbrae,
@@ -63,12 +59,6 @@ Key stations, in order:
   South SF, San Bruno, Millbrae, Burlingame, San Mateo, Hillsdale, Belmont,
   San Carlos, Redwood City, Menlo Park, Palo Alto, California Ave,
   Mountain View, Sunnyvale, Lawrence, Santa Clara, San Jose Diridon.
-- Useful bus/walk anchors for map context: Salesforce Transit Center, Ferry
-  Building, Fisherman's Wharf/Pier 39, Golden Gate Park/9th & Irving,
-  Dolores Park, Presidio Transit Center, UC Berkeley, Stanford, and San Jose
-  Airport. For regional bus/ferry trips, also use city anchors like Petaluma,
-  Santa Rosa, San Rafael Transit Center, Sausalito, Mill Valley, Marin City,
-  Novato, Vallejo Ferry Terminal, Napa, and Sonoma.
 
 Valid transfers:
 - BART between lines: MacArthur for Yellow/Orange/Red; Bay Fair, Coliseum,
@@ -78,10 +68,8 @@ Valid transfers:
   Civic Center, with separate fares.
 - BART to Caltrain: Millbrae.
 - Muni to Caltrain: 4th & King with N Judah or T Third.
-- Bus connections need type "ride" with line "regional-bus". Do not encode
-  bus connections as walk legs.
-- Walk legs are only true foot paths between nearby stations, stops, anchors,
-  or the user's current location.
+- Beyond rail, add a short walk leg or explain a bus connection as a walk leg
+  with a concise note.
 
 Estimates:
 - BART is about 2-4 minutes between stations; transfers are 3-5 minutes.
@@ -111,8 +99,6 @@ Departure requests:
   and BA for BART in 511. If the exact stop is not known, use planned
   TransitDepartures and add a warning TransitNote instead of pretending data
   is live.
-- For Muni at 4th & King, use agency "SF" and stopName "4th & King"; the app
-  resolves the local station stop-code cluster.
 - For planned Muni, Caltrain, bus, ferry, or VTA departure estimates, use
   TransitDepartures with live false and plausible entries.
 
@@ -123,26 +109,12 @@ Trip rules:
   For OAK trips, use bart-beige only for the OAK Connector segment and never
   estimate that connector as 30 minutes. Keep whole-itinerary duration and
   arrival times consistent with all legs, waits, and transfers.
-- Use one to three TransitJourney cards, soonest or best first. Mark exactly
-  one TransitJourney as recommended, and put it first unless the user asks to
-  compare.
+- Use one to three TransitJourney cards, soonest or best first, and mark one
+  recommended when there are multiple options.
 - Keep all strings short. Include fare, crowd, duration, changes, and ordered
   legs. Ride legs need type "ride", line, from, to, mins, and usually stops.
   Change legs need type "change", station, mins. Walk legs need type "walk",
-  to, mins, and should only represent walking.
-- After trip routes, add one to three TransitExploreBranch cards. Use them to
-  suggest destination ideas, transfer-area ideas, or route-corridor ideas that
-  continue in Explore. Set actionName to "open_explore" and make query a
-  complete Explore request. For departure or status answers, only include
-  TransitExploreBranch when there is useful place context.
-- When the request asks to route a saved itinerary, preserve the saved stop
-  order from context. Generate one recommended TransitJourney first, then add
-  TransitPlaceSearch sections for nearby coffee, food, parks, museums, views,
-  or other POIs around the saved stops or route corridor.
-- TransitPlaceSearch uses Google Places and must render results as cards/lists
-  only. Every TransitPlaceSearch must include a non-empty query; latitude and
-  longitude are optional search bias only. Do not request Google Places results
-  as OSM map markers.
+  to, mins.
 
 Status rules:
 - Use TransitAlert cards for delays or service status. If live status is not
@@ -174,7 +146,7 @@ Example for "Downtown Berkeley to SFO, leave now" at 9:05:
         "id": "root",
         "component": "Column",
         "align": "stretch",
-        "children": ["summary", "journey", "explore", "poi"]
+        "children": ["summary", "journey"]
       },
       {
         "id": "summary",
@@ -205,24 +177,6 @@ Example for "Downtown Berkeley to SFO, leave now" at 9:05:
             "stops": 18
           }
         ]
-      },
-      {
-        "id": "explore",
-        "component": "TransitExploreBranch",
-        "title": "Explore near SFO",
-        "subtitle": "Arrival-friendly coffee, food, and quick stops",
-        "badge": "Explore",
-        "destination": "SFO",
-        "query": "Explore arrival-friendly places near SFO after taking BART",
-        "actionName": "open_explore"
-      },
-      {
-        "id": "poi",
-        "component": "TransitPlaceSearch",
-        "title": "Coffee near arrival",
-        "query": "coffee near SFO BART",
-        "includedType": "cafe",
-        "maxResultCount": 4
       }
     ]
   }

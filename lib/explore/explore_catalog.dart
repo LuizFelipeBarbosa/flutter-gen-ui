@@ -82,7 +82,8 @@ final CatalogItem explorerOptionCardItem = CatalogItem(
       ),
       'priceLabel': S.string(
         description:
-            r'Optional estimated price label, such as Free, $, $$, or $15-25.',
+            'Optional estimated price label, such as Free, $, $$, or '
+            r'$15-25.',
       ),
       'imageUrl': S.string(
         description:

@@ -35,19 +35,6 @@ void main() {
                       'latitude': 37.776,
                       'longitude': -122.408,
                     },
-                    'photos': [
-                      {
-                        'name': 'places/coffee-1/photos/photo-1',
-                        'widthPx': 800,
-                        'heightPx': 600,
-                        'authorAttributions': [
-                          {
-                            'displayName': 'A Photographer',
-                            'uri': 'https://example.com/profile',
-                          },
-                        ],
-                      },
-                    ],
                   },
                 ],
               }),
@@ -83,10 +70,6 @@ void main() {
         expect(
           _header(sentRequest, 'X-Goog-FieldMask'),
           contains('places.location'),
-        );
-        expect(
-          _header(sentRequest, 'X-Goog-FieldMask'),
-          contains('places.photos'),
         );
 
         final body = _jsonMap(sentRequest.body);
@@ -124,12 +107,6 @@ void main() {
         expect(results.single.openNow, isTrue);
         expect(results.single.latitude, 37.776);
         expect(results.single.longitude, -122.408);
-        expect(results.single.photos, hasLength(1));
-        expect(
-          results.single.primaryPhoto?.name,
-          'places/coffee-1/photos/photo-1',
-        );
-        expect(results.single.primaryPhoto?.attributionLabel, 'A Photographer');
 
         final card = results.single.toCardData().toJson();
         expect(card['kind'], 'placeResultCard');
@@ -137,24 +114,8 @@ void main() {
         expect(card['metadata'], ['4.6 (912)', r'$$', 'Open now']);
         expect(card['tags'], ['Coffee Shop', 'Cafe', 'Food']);
         expect(card['googleMapsUri'], 'https://maps.google.com/?cid=coffee-1');
-        expect(card['photoName'], 'places/coffee-1/photos/photo-1');
-        expect(card['photoAttributionLabel'], 'A Photographer');
         expect(jsonEncode(card), isNot(contains('latitude')));
         expect(jsonEncode(card), isNot(contains('longitude')));
-
-        final photoUri = client.photoMediaUri(results.single.primaryPhoto!);
-        expect(
-          photoUri?.path,
-          '/v1/places/coffee-1/photos/photo-1/media',
-        );
-        expect(
-          photoUri?.queryParameters,
-          {
-            'key': 'places-key',
-            'maxWidthPx': '480',
-            'maxHeightPx': '320',
-          },
-        );
       },
     );
 

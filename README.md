@@ -126,33 +126,30 @@ flutter config --enable-linux-desktop
 ```
 
 Then run, passing your Inception key in via `--dart-define`. Add
-`GOOGLE_PLACES_API_KEY` for Explore and Transit POI cards backed by Google
-Places. Add `KEY_511` if you want local desktop live 511 departures for Muni,
-Caltrain, AC Transit, VTA, ferries, and other monitored Bay Area operators.
-Use the device matching your OS:
+`KEY_511` if you want local desktop live 511 departures for Muni, Caltrain,
+AC Transit, VTA, ferries, and other monitored Bay Area operators. Use the
+device matching your OS:
 
 ```sh
 # macOS
-flutter run -d macos --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=GOOGLE_PLACES_API_KEY=your_google_places_key --dart-define=KEY_511=your_511_token
+flutter run -d macos --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 # Windows
-flutter run -d windows --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=GOOGLE_PLACES_API_KEY=your_google_places_key --dart-define=KEY_511=your_511_token
+flutter run -d windows --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 # Linux
-flutter run -d linux --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=GOOGLE_PLACES_API_KEY=your_google_places_key --dart-define=KEY_511=your_511_token
+flutter run -d linux --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 ```
 
 Replace `your_key_here` with the key from step 2. The first build takes a minute or two; later runs are faster.
-Replace `your_google_places_key` with a Google Places API key, or omit that
-flag only if you do not need Explore or Transit place-search cards.
 Replace `your_511_token` with a token from 511 SF Bay Open Data, or omit that
 flag if you only need BART's public real-time feed and planned estimates.
 
 > **Windows note:** In PowerShell the command above works as-is. If your key contains special characters, wrap the whole `--dart-define` value in quotes: `"--dart-define=INCEPTION_API_KEY=your_key_here"`.
 
-> **Why `--dart-define`?** It injects keys as compile-time constants read with `String.fromEnvironment(...)` (see [lib/model/inception_model_client.dart](lib/model/inception_model_client.dart), [lib/places/google_places_client.dart](lib/places/google_places_client.dart), and [lib/transit/bart_departures_client.dart](lib/transit/bart_departures_client.dart)). This keeps secrets out of the codebase for local desktop runs. Do not ship public web/mobile builds with `GOOGLE_PLACES_API_KEY` or `KEY_511` embedded; use a server-side proxy for production Places and 511 access.
+> **Why `--dart-define`?** It injects keys as compile-time constants read with `String.fromEnvironment(...)` (see [lib/model/inception_model_client.dart](lib/model/inception_model_client.dart) and [lib/transit/bart_departures_client.dart](lib/transit/bart_departures_client.dart)). This keeps secrets out of the codebase for local desktop runs. Do not ship public web/mobile builds with `KEY_511` embedded; use a server-side proxy for production 511 access.
 
 Once it's running, type a request into the box at the bottom, for example _"Make a list of 3 fruits with their emojis, and a button to add a new random fruit to the list"_ The left side shows the rendered UI; the right side shows the raw A2UI JSON the model produced, so you can see exactly what it asked for.
 
-> **Tip:** Tired of typing the long command? Most editors let you save it. In VS Code, add a `launch.json` config with `"args": ["--dart-define=INCEPTION_API_KEY=your_key_here", "--dart-define=GOOGLE_PLACES_API_KEY=your_google_places_key", "--dart-define=KEY_511=your_511_token"]`.
+> **Tip:** Tired of typing the long command? Most editors let you save it. In VS Code, add a `launch.json` config with `"args": ["--dart-define=INCEPTION_API_KEY=your_key_here", "--dart-define=KEY_511=your_511_token"]`.
 
 ---
 

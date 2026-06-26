@@ -79,8 +79,7 @@ class PlaceResult {
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
       if (types.isNotEmpty) 'types': types,
-      if (photos.isNotEmpty)
-        'photos': [for (final photo in photos) photo.toJson()],
+      if (photos.isNotEmpty) 'photos': [for (final photo in photos) photo.toJson()],
     };
   }
 }
