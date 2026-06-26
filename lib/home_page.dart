@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:genui_template/conversation.dart';
+import 'package:genui_template/explore/itinerary.dart';
+import 'package:genui_template/explore/transit_route_handoff_controller.dart';
 import 'package:genui_template/location/location.dart';
 import 'package:genui_template/model/inception_model_client.dart';
 import 'package:genui_template/model/model_client.dart';
@@ -46,12 +48,16 @@ const List<_Suggestion> _suggestions = [
 class HomePage extends StatefulWidget {
   const HomePage({
     this.locationController,
+    this.itineraryController,
+    this.routeHandoffController,
     this.onOpenExplore,
     this.modelClientBuilder,
     super.key,
   });
 
   final UserLocationController? locationController;
+  final ItineraryController? itineraryController;
+  final TransitRouteHandoffController? routeHandoffController;
   final ValueChanged<String>? onOpenExplore;
   final HomeModelClientBuilder? modelClientBuilder;
 
@@ -63,11 +69,12 @@ class _HomePageState extends State<HomePage> {
   late final GenUiSession _session;
   late final UserLocationController _locationController;
   late final bool _ownsLocationController;
-  late final ActionDelegate _actionDelegate;
+  late ActionDelegate _actionDelegate;
   final _textController = TextEditingController();
   final _sheetController = DraggableScrollableController();
   final _routeOverlay = ValueNotifier<MapRouteOverlay?>(null);
   StreamSubscription<ConversationEvent>? _eventsSub;
+  int? _lastRouteHandoffId;
 
   static const double _minSize = 0.16;
   static const double _halfSize = 0.52;
@@ -82,10 +89,11 @@ class _HomePageState extends State<HomePage> {
     if (_ownsLocationController) unawaited(_locationController.refresh());
     _actionDelegate = _TransitActionDelegate(
       onOpenExplore: widget.onOpenExplore,
+      itineraryController: widget.itineraryController,
     );
     _session = GenUiSession(
       modelClientBuilder: widget.modelClientBuilder ?? InceptionModelClient.new,
-      contextProvider: _locationContextForModel,
+      contextProvider: _contextForModel,
     );
 
     _eventsSub = _session.events.listen((event) {
@@ -95,11 +103,33 @@ class _HomePageState extends State<HomePage> {
         );
       }
     });
+
+    widget.routeHandoffController?.addListener(_handleRouteHandoff);
+    _handleRouteHandoff();
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.itineraryController != widget.itineraryController ||
+        oldWidget.onOpenExplore != widget.onOpenExplore) {
+      _actionDelegate = _TransitActionDelegate(
+        onOpenExplore: widget.onOpenExplore,
+        itineraryController: widget.itineraryController,
+      );
+    }
+
+    if (oldWidget.routeHandoffController != widget.routeHandoffController) {
+      oldWidget.routeHandoffController?.removeListener(_handleRouteHandoff);
+      widget.routeHandoffController?.addListener(_handleRouteHandoff);
+      _handleRouteHandoff();
+    }
   }
 
   @override
   void dispose() {
     unawaited(_eventsSub?.cancel());
+    widget.routeHandoffController?.removeListener(_handleRouteHandoff);
     if (_ownsLocationController) _locationController.dispose();
     _textController.dispose();
     _sheetController.dispose();
@@ -119,11 +149,32 @@ class _HomePageState extends State<HomePage> {
     _expandSheet();
   }
 
+  void _handleRouteHandoff() {
+    final handoff = widget.routeHandoffController?.value;
+    if (handoff == null || handoff.id == _lastRouteHandoffId) return;
+    _lastRouteHandoffId = handoff.id;
+
+    WidgetsBinding.instance
+      ..addPostFrameCallback((_) {
+        if (!mounted || _lastRouteHandoffId != handoff.id) return;
+        sendMessage(handoff.query);
+      })
+      ..scheduleFrame();
+  }
+
   void _handleJourneySelected(TransitJourney journey) {
     _routeOverlay.value = buildTransitJourneyRouteOverlay(
       journey,
       currentLocation: _locationController.value.fix?.coordinate,
     );
+  }
+
+  void _routeSavedItinerary() {
+    final query = transitRouteRequestFor(
+      widget.itineraryController?.value ?? const [],
+    );
+    if (query == null) return;
+    sendMessage(query);
   }
 
   void _expandSheet() {
@@ -137,6 +188,14 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
+  }
+
+  String _contextForModel() {
+    return [
+      _locationContextForModel(),
+      widget.itineraryController?.toTransitPromptContext() ??
+          'Saved itinerary: unavailable.',
+    ].join(' ');
   }
 
   String _locationContextForModel() {
@@ -179,8 +238,10 @@ class _HomePageState extends State<HomePage> {
                     surfaceId: surfaceId,
                     session: _session,
                     locationController: _locationController,
+                    itineraryController: widget.itineraryController,
                     actionDelegate: _actionDelegate,
                     onJourneySelected: _handleJourneySelected,
+                    onRouteSavedItinerary: _routeSavedItinerary,
                     onSuggestion: sendMessage,
                   );
                 },
@@ -212,8 +273,10 @@ class _BottomSheet extends StatelessWidget {
     required this.surfaceId,
     required this.session,
     required this.locationController,
+    required this.itineraryController,
     required this.actionDelegate,
     required this.onJourneySelected,
+    required this.onRouteSavedItinerary,
     required this.onSuggestion,
   });
 
@@ -222,8 +285,10 @@ class _BottomSheet extends StatelessWidget {
   final String? surfaceId;
   final GenUiSession session;
   final UserLocationController locationController;
+  final ItineraryController? itineraryController;
   final ActionDelegate actionDelegate;
   final ValueChanged<TransitJourney> onJourneySelected;
+  final VoidCallback onRouteSavedItinerary;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -269,6 +334,14 @@ class _BottomSheet extends StatelessWidget {
                 onSuggestion: onSuggestion,
               ),
             ),
+            if (itineraryController != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: _SavedItineraryPanel(
+                  controller: itineraryController!,
+                  onRoute: onRouteSavedItinerary,
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
               child: _ResultArea(
@@ -304,6 +377,107 @@ class _DragHandle extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SavedItineraryPanel extends StatelessWidget {
+  const _SavedItineraryPanel({
+    required this.controller,
+    required this.onRoute,
+  });
+
+  final ItineraryController controller;
+  final VoidCallback onRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<ItineraryStop>>(
+      valueListenable: controller,
+      builder: (context, stops, _) {
+        if (stops.isEmpty) return const SizedBox.shrink();
+
+        final first = stops.first;
+        final last = stops.last;
+        final routeLabel = stops.length == 1
+            ? first.title
+            : '${first.title} → ${last.title}';
+        final stopLabel = stops.length == 1
+            ? '1 saved stop'
+            : '${stops.length} saved stops';
+        final duration = stops.fold<int>(
+          0,
+          (total, stop) => total + stop.durationMinutes,
+        );
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: bayHopCardDecoration(radius: 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: BayHopColors.aiPurple.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: const Icon(
+                      Icons.bookmark_added_rounded,
+                      color: BayHopColors.aiPurple,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Saved itinerary',
+                          style: BayHopText.body(
+                            size: 14.5,
+                            weight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          routeLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: BayHopText.body(
+                            size: 12.5,
+                            color: BayHopColors.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: onRoute,
+                    icon: const Icon(Icons.alt_route_rounded, size: 18),
+                    label: const Text('Route'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  BayHopChip(label: stopLabel),
+                  BayHopChip(label: '$duration min planned'),
+                  if (first.category != null)
+                    BayHopChip(label: first.category!),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -893,9 +1067,13 @@ class _Suggestion {
 }
 
 class _TransitActionDelegate implements ActionDelegate {
-  const _TransitActionDelegate({required this.onOpenExplore});
+  const _TransitActionDelegate({
+    required this.onOpenExplore,
+    required this.itineraryController,
+  });
 
   final ValueChanged<String>? onOpenExplore;
+  final ItineraryController? itineraryController;
 
   @override
   bool handleEvent(
@@ -905,19 +1083,55 @@ class _TransitActionDelegate implements ActionDelegate {
     Widget Function(SurfaceDefinition, Catalog, String, DataContext)
     buildWidget,
   ) {
-    if (event is! UserActionEvent || event.name != 'open_explore') {
-      return false;
+    if (event is! UserActionEvent) return false;
+
+    switch (event.name) {
+      case 'open_explore':
+        final query = _actionString(event.context['query']);
+        if (query == null) return false;
+        onOpenExplore?.call(query);
+        return true;
+
+      case 'explore_place':
+        final title =
+            _actionString(event.context['displayName']) ??
+            _actionString(event.context['title']);
+        if (title == null) return false;
+        onOpenExplore?.call('Explore around $title');
+        return true;
+
+      case 'add_itinerary_stop':
+        final itinerary = itineraryController;
+        if (itinerary == null) return false;
+
+        final added = itinerary.addFromAction(
+          _itineraryContext(event.context),
+        );
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              added ? 'Added to itinerary' : 'Already in itinerary',
+            ),
+          ),
+        );
+        return true;
     }
 
-    final query = _actionString(event.context['query']);
-    if (query == null) return false;
-    onOpenExplore?.call(query);
-    return true;
+    return false;
   }
 
   String? _actionString(Object? value) {
     final text = value?.toString().trim();
     if (text == null || text.isEmpty) return null;
     return text;
+  }
+
+  Map<String, Object?> _itineraryContext(JsonMap context) {
+    final place = context['place'];
+    if (place is Map) {
+      return place.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return context;
   }
 }

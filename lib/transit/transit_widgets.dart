@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
+import 'package:genui_template/explore/explore_widgets.dart' as explore_widgets;
 import 'package:genui_template/transit/_json.dart' as json_value;
 import 'package:genui_template/transit/bart_departures_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
@@ -218,6 +219,12 @@ class TransitExploreBranch extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+abstract final class TransitPlaceSearch {
+  static Widget fromContext(CatalogItemContext context) {
+    return explore_widgets.ExplorePlaceSearch.fromContext(context);
   }
 }
 

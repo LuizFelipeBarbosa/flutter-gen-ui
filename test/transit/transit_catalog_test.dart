@@ -12,6 +12,7 @@ void main() {
     expect(itemNames, contains('TransitDepartures'));
     expect(itemNames, contains('TransitLiveDepartures'));
     expect(itemNames, contains('TransitExploreBranch'));
+    expect(itemNames, contains('TransitPlaceSearch'));
     expect(itemNames, contains('TransitAlert'));
     expect(itemNames, contains('TransitNote'));
   });
@@ -22,5 +23,13 @@ void main() {
     expect(systemPrompt, contains('Bus connections need type "ride"'));
     expect(systemPrompt, contains('bus connections as walk legs'));
     expect(systemPrompt, contains('Walk legs are only true foot paths'));
+  });
+
+  test('transit instructions keep Google Places POIs in cards', () {
+    expect(transitCatalogRules, contains('TransitPlaceSearch'));
+    expect(transitCatalogRules, contains('cards/lists'));
+    expect(transitCatalogRules, contains('never ask'));
+    expect(systemPrompt, contains('TransitPlaceSearch uses Google Places'));
+    expect(systemPrompt, contains('Do not request Google Places results'));
   });
 }

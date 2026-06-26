@@ -10,6 +10,7 @@ final List<CatalogItem> transitCatalogItems = [
   transitDeparturesItem,
   transitLiveDeparturesItem,
   transitExploreBranchItem,
+  transitPlaceSearchItem,
   transitAlertItem,
   transitNoteItem,
 ];
@@ -250,6 +251,45 @@ final CatalogItem transitExploreBranchItem = CatalogItem(
   ],
 );
 
+final CatalogItem transitPlaceSearchItem = CatalogItem(
+  name: 'TransitPlaceSearch',
+  dataSchema: S.object(
+    description:
+        'A Google Places-backed POI list for places near a route stop, '
+        'destination, transfer, or saved itinerary area. Results must stay as '
+        'cards/lists, not OSM map markers.',
+    properties: {
+      'title': S.string(description: 'Search block title.'),
+      'query': S.string(description: 'Text search query.'),
+      'includedType': S.string(
+        description: 'Optional Google Places type, such as cafe or museum.',
+      ),
+      'latitude': S.number(description: 'Optional location bias latitude.'),
+      'longitude': S.number(description: 'Optional location bias longitude.'),
+      'radiusMeters': S.number(
+        description: 'Optional bias/restriction radius in meters.',
+      ),
+      'maxResultCount': S.integer(
+        description: 'Number of places to show, 1 to 8.',
+      ),
+    },
+    required: ['title'],
+  ),
+  widgetBuilder: TransitPlaceSearch.fromContext,
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitPlaceSearch',
+        'title': 'Coffee near arrival',
+        'query': 'coffee near Downtown Berkeley BART',
+        'includedType': 'cafe',
+        'maxResultCount': 4,
+      },
+    ]),
+  ],
+);
+
 final CatalogItem transitAlertItem = CatalogItem(
   name: 'TransitAlert',
   dataSchema: S.object(
@@ -349,6 +389,9 @@ Prefer the custom Bay Area transit components over generic cards or text:
 - Use TransitJourney for trip options.
 - Use TransitExploreBranch after trip routes when there is useful destination,
   transfer-station, or route-corridor exploration context.
+- Use TransitPlaceSearch for points of interest around a destination, saved
+  itinerary stop, transfer station, or route corridor. Results are cards/lists
+  only; never ask for Google Places POIs as OSM map markers.
 - Use TransitJourney ride legs with line "regional-bus" for bus connections.
   Walk legs are only true foot paths, not bus placeholders.
 - Use TransitLiveDepartures for live BART departure requests when you know the BART abbreviation.

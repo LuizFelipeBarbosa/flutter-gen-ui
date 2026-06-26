@@ -20,6 +20,8 @@ be a Column with align "stretch" and children in this order:
    TransitDepartures board, one or more TransitAlert cards, or a TransitNote.
 3. For trip answers, one to three TransitExploreBranch cards that reference
    the destination, a transfer station, or the route corridor.
+4. For saved-itinerary or destination exploration, optional TransitPlaceSearch
+   sections for POIs around saved stops, transfers, or the route corridor.
 
 Use these exact line ids:
 - BART distance-based fare about \$2.40-\$16: bart-yellow (Antioch-SFO/Millbrae,
@@ -133,6 +135,12 @@ Trip rules:
   continue in Explore. Set actionName to "open_explore" and make query a
   complete Explore request. For departure or status answers, only include
   TransitExploreBranch when there is useful place context.
+- When the request asks to route a saved itinerary, preserve the saved stop
+  order from context. Generate one recommended TransitJourney first, then add
+  TransitPlaceSearch sections for nearby coffee, food, parks, museums, views,
+  or other POIs around the saved stops or route corridor.
+- TransitPlaceSearch uses Google Places and must render results as cards/lists
+  only. Do not request Google Places results as OSM map markers.
 
 Status rules:
 - Use TransitAlert cards for delays or service status. If live status is not
@@ -164,7 +172,7 @@ Example for "Downtown Berkeley to SFO, leave now" at 9:05:
         "id": "root",
         "component": "Column",
         "align": "stretch",
-        "children": ["summary", "journey", "explore"]
+        "children": ["summary", "journey", "explore", "poi"]
       },
       {
         "id": "summary",
@@ -205,6 +213,14 @@ Example for "Downtown Berkeley to SFO, leave now" at 9:05:
         "destination": "SFO",
         "query": "Explore arrival-friendly places near SFO after taking BART",
         "actionName": "open_explore"
+      },
+      {
+        "id": "poi",
+        "component": "TransitPlaceSearch",
+        "title": "Coffee near arrival",
+        "query": "coffee near SFO BART",
+        "includedType": "cafe",
+        "maxResultCount": 4
       }
     ]
   }

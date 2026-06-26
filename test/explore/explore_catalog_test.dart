@@ -20,6 +20,7 @@ void main() {
     expect(itemNames, isNot(contains('ExplorerOptionCard')));
     expect(itemNames, contains('TransitSummary'));
     expect(itemNames, contains('TransitExploreBranch'));
+    expect(itemNames, contains('TransitPlaceSearch'));
   });
 
   test('explore catalog does not include transit handoff components', () {
@@ -27,5 +28,6 @@ void main() {
     final itemNames = catalog.items.map((item) => item.name);
 
     expect(itemNames, isNot(contains('TransitExploreBranch')));
+    expect(itemNames, isNot(contains('TransitPlaceSearch')));
   });
 }

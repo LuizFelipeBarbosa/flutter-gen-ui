@@ -15,30 +15,33 @@ import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
 
 const List<String> _exploreSuggestions = [
-  'Plan a first-timer afternoon in San Francisco',
-  'Find coffee and bookstores near me',
-  'Build a relaxed Oakland food crawl',
-  'Explore Berkeley by BART',
+  'Surprise me with a transit-friendly mini adventure',
+  'Build a snack quest with views near me',
+  'Plan a playful Oakland food crawl',
+  'Turn Berkeley by BART into a side-quest',
 ];
 
 class ExplorePage extends StatefulWidget {
   const ExplorePage({
+    required this.itineraryController,
     required this.locationListenable,
     this.handoffController,
+    this.onRouteInTransit,
     super.key,
   });
 
+  final ItineraryController itineraryController;
   final ValueListenable<LocationSnapshot> locationListenable;
   final ExploreHandoffController? handoffController;
+  final VoidCallback? onRouteInTransit;
 
   @override
   State<ExplorePage> createState() => _ExplorePageState();
 }
 
 class _ExplorePageState extends State<ExplorePage> {
-  late final ItineraryController _itinerary = ItineraryController();
   late final GenUiSession _session;
-  late final ActionDelegate _actionDelegate;
+  late ActionDelegate _actionDelegate;
   final _textController = TextEditingController();
   StreamSubscription<ConversationEvent>? _eventsSub;
   int? _lastHandoffId;
@@ -46,7 +49,7 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   void initState() {
     super.initState();
-    _actionDelegate = _ExploreActionDelegate(_itinerary);
+    _actionDelegate = _ExploreActionDelegate(widget.itineraryController);
     _session = GenUiSession(
       catalogBuilder: buildExploreCatalog,
       systemPrompt: exploreSystemPrompt,
@@ -69,10 +72,15 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   void didUpdateWidget(covariant ExplorePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.handoffController == widget.handoffController) return;
-    oldWidget.handoffController?.removeListener(_handleExploreHandoff);
-    widget.handoffController?.addListener(_handleExploreHandoff);
-    _handleExploreHandoff();
+    if (oldWidget.itineraryController != widget.itineraryController) {
+      _actionDelegate = _ExploreActionDelegate(widget.itineraryController);
+    }
+
+    if (oldWidget.handoffController != widget.handoffController) {
+      oldWidget.handoffController?.removeListener(_handleExploreHandoff);
+      widget.handoffController?.addListener(_handleExploreHandoff);
+      _handleExploreHandoff();
+    }
   }
 
   @override
@@ -81,14 +89,13 @@ class _ExplorePageState extends State<ExplorePage> {
     widget.handoffController?.removeListener(_handleExploreHandoff);
     _textController.dispose();
     _session.dispose();
-    _itinerary.dispose();
     super.dispose();
   }
 
   String _contextForModel() {
     return [
       _locationContextForModel(),
-      _itinerary.toPromptContext(),
+      widget.itineraryController.toPromptContext(),
     ].join(' ');
   }
 
@@ -125,7 +132,10 @@ class _ExplorePageState extends State<ExplorePage> {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            final itinerary = _ItineraryPanel(controller: _itinerary);
+            final itinerary = _ItineraryPanel(
+              controller: widget.itineraryController,
+              onRouteInTransit: widget.onRouteInTransit,
+            );
             final explorer = _ExplorerSurface(
               state: state,
               surfaceId: surfaceId,
@@ -259,8 +269,8 @@ class _ExploreIntro extends StatelessWidget {
         const ExploreSummaryCard(
           title: 'Bay Area Explorer',
           summary:
-              'Branch through generated ideas, ground real places with Google, '
-              'and save stops into a session itinerary.',
+              'Pick a quest, ground real places with Google, save the best '
+              'stops, then route the day in Transit.',
           badge: 'Explore',
         ),
         const SizedBox(height: 14),
@@ -368,9 +378,13 @@ class _ExploreComposer extends StatelessWidget {
 }
 
 class _ItineraryPanel extends StatelessWidget {
-  const _ItineraryPanel({required this.controller});
+  const _ItineraryPanel({
+    required this.controller,
+    this.onRouteInTransit,
+  });
 
   final ItineraryController controller;
+  final VoidCallback? onRouteInTransit;
 
   @override
   Widget build(BuildContext context) {
@@ -395,13 +409,29 @@ class _ItineraryPanel extends StatelessWidget {
                         ),
                       ),
                       if (stops.isNotEmpty)
-                        TextButton(
-                          onPressed: controller.clear,
-                          child: const Text('Clear'),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton.filledTonal(
+                              tooltip: 'Route in Transit',
+                              onPressed: onRouteInTransit,
+                              icon: const Icon(Icons.alt_route_rounded),
+                            ),
+                            const SizedBox(width: 4),
+                            TextButton(
+                              onPressed: controller.clear,
+                              child: const Text('Clear'),
+                            ),
+                          ],
                         ),
                     ],
                   ),
                 ),
+                if (stops.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: _ItineraryStats(stops: stops),
+                  ),
                 Expanded(
                   child: stops.isEmpty
                       ? const _EmptyItinerary()
@@ -446,9 +476,42 @@ class _EmptyItinerary extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       child: Text(
         'Add places from generated Google result cards. Saved stops stay in '
-        'this session and are sent back as context.',
+        'this app and can be routed from Transit.',
         style: BayHopText.body(color: BayHopColors.muted, height: 1.35),
       ),
+    );
+  }
+}
+
+class _ItineraryStats extends StatelessWidget {
+  const _ItineraryStats({required this.stops});
+
+  final List<ItineraryStop> stops;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = stops.fold<int>(
+      0,
+      (total, stop) => total + stop.durationMinutes,
+    );
+    final stopLabel = stops.length == 1 ? '1 stop' : '${stops.length} stops';
+    final hours = duration ~/ 60;
+    final minutes = duration % 60;
+    final durationLabel = hours == 0
+        ? '$minutes min'
+        : minutes == 0
+        ? '${hours}h'
+        : '${hours}h ${minutes}m';
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        BayHopChip(label: stopLabel),
+        BayHopChip(label: durationLabel),
+        if (stops.first.category != null)
+          BayHopChip(label: 'Starts ${stops.first.category!}'),
+      ],
     );
   }
 }

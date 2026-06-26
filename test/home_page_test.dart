@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:genui_template/explore/itinerary.dart';
+import 'package:genui_template/explore/transit_route_handoff_controller.dart';
 import 'package:genui_template/home_page.dart';
 import 'package:genui_template/location/location.dart';
 import 'package:genui_template/model/model_client.dart';
@@ -128,6 +130,92 @@ void main() {
         debugDefaultTargetPlatformOverride = null;
       }
     });
+
+    testWidgets('saved itinerary panel sends a route query', (tester) async {
+      late final _CapturingModelClient modelClient;
+
+      final locationController = UserLocationController();
+      final itinerary = ItineraryController()
+        ..addFromAction({
+          'title': 'Coffee',
+          'address': 'San Francisco, CA',
+          'durationMinutes': 30,
+        })
+        ..addFromAction({
+          'title': 'Museum',
+          'address': 'San Francisco, CA',
+          'durationMinutes': 90,
+        });
+      addTearDown(locationController.dispose);
+      addTearDown(itinerary.dispose);
+
+      await tester.pumpWidget(
+        _TestApp(
+          child: HomePage(
+            locationController: locationController,
+            itineraryController: itinerary,
+            modelClientBuilder: ({required systemPrompt}) {
+              return modelClient = _CapturingModelClient(
+                systemPrompt: systemPrompt,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Saved itinerary'), findsOneWidget);
+      expect(find.text('Coffee → Museum'), findsOneWidget);
+
+      await tester.tap(find.text('Route'));
+      await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
+
+      expect(
+        modelClient.history.single.text,
+        contains('Saved itinerary stops in order'),
+      );
+      expect(
+        modelClient.history.single.text,
+        contains('Request: Route this saved itinerary in order'),
+      );
+      expect(modelClient.history.single.text, contains('Coffee'));
+      expect(modelClient.history.single.text, contains('Museum'));
+    });
+
+    testWidgets('route handoff sends a fresh route request', (tester) async {
+      late final _CapturingModelClient modelClient;
+
+      final locationController = UserLocationController();
+      final handoffController = TransitRouteHandoffController();
+      addTearDown(locationController.dispose);
+      addTearDown(handoffController.dispose);
+
+      await tester.pumpWidget(
+        _TestApp(
+          child: HomePage(
+            locationController: locationController,
+            routeHandoffController: handoffController,
+            modelClientBuilder: ({required systemPrompt}) {
+              return modelClient = _CapturingModelClient(
+                systemPrompt: systemPrompt,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+
+      handoffController.routeItinerary(const [
+        ItineraryStop(localId: 'stop-1', title: 'Ferry Building'),
+      ]);
+      await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
+
+      expect(
+        modelClient.history.single.text,
+        contains('Request: Route me to this saved itinerary stop'),
+      );
+      expect(modelClient.history.single.text, contains('Ferry Building'));
+    });
   });
 }
 
@@ -155,7 +243,7 @@ class _CapturingModelClient extends ModelClient {
 Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
   for (var attempts = 0; attempts < 20; attempts++) {
     if (condition()) return;
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
   }
 
   fail('Condition was not met before the pump limit.');
