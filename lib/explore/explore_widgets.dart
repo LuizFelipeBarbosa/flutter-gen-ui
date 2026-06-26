@@ -120,11 +120,14 @@ class ExplorerOptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final durationLabel = switch (durationMinutes) {
+      final minutes? when minutes > 0 => '$minutes min',
+      _ => null,
+    };
     final details = [
-      if (distanceLabel != null) distanceLabel!,
-      if (priceLabel != null) priceLabel!,
-      if (durationMinutes != null && durationMinutes! > 0)
-        '${durationMinutes!} min',
+      ?distanceLabel,
+      ?priceLabel,
+      ?durationLabel,
     ];
     final actionContext = <String, Object?>{
       'title': title,
@@ -413,7 +416,7 @@ class _ExplorePlaceSearchState extends State<ExplorePlaceSearch> {
         rankPreference: NearbyRankPreference.distance,
         regionCode: 'US',
         includedTypes: [
-          if (widget.includedType != null) widget.includedType!,
+          ?widget.includedType,
         ],
       );
     }
@@ -540,7 +543,7 @@ class _PlaceResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final card = place.toCardData();
     final labels = [
-      if (distanceLabel != null) distanceLabel!,
+      ?distanceLabel,
       ...card.metadata,
       ...card.tags,
     ];
