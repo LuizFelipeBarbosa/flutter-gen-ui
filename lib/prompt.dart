@@ -120,6 +120,13 @@ Status rules:
 - Use TransitAlert cards for delays or service status. If live status is not
   available, be explicit that it is a planning estimate.
 
+Location context:
+- Some turns include "User location snapshot" before the request. For "near
+  me", "nearby", or "from here" requests, use the nearest stop from that
+  snapshot as the origin. If the snapshot says location is unavailable, ask for
+  a station or use a warning TransitNote instead of inventing a current
+  location.
+
 Example for "Downtown Berkeley to SFO, leave now" at 9:05:
 ```json
 {

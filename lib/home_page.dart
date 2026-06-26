@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:genui_template/conversation.dart';
-import 'package:genui_template/model/featherless_model_client.dart';
+import 'package:genui_template/location/location.dart';
+import 'package:genui_template/model/inception_model_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
-import 'package:genui_template/transit/transit_map.dart';
 
 const List<_Suggestion> _suggestions = [
   _Suggestion(
@@ -36,7 +36,12 @@ const List<_Suggestion> _suggestions = [
 ];
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({
+    this.locationController,
+    super.key,
+  });
+
+  final UserLocationController? locationController;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -44,6 +49,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late final GenUiSession _session;
+  late final UserLocationController _locationController;
+  late final bool _ownsLocationController;
   final _textController = TextEditingController();
   final _sheetController = DraggableScrollableController();
   StreamSubscription<ConversationEvent>? _eventsSub;
@@ -56,7 +63,13 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
 
-    _session = GenUiSession(modelClientBuilder: FeatherlessModelClient.new);
+    _locationController = widget.locationController ?? UserLocationController();
+    _ownsLocationController = widget.locationController == null;
+    if (_ownsLocationController) unawaited(_locationController.refresh());
+    _session = GenUiSession(
+      modelClientBuilder: InceptionModelClient.new,
+      contextProvider: _locationContextForModel,
+    );
 
     _eventsSub = _session.events.listen((event) {
       if (event is ConversationError && mounted) {
@@ -70,6 +83,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     unawaited(_eventsSub?.cancel());
+    if (_ownsLocationController) _locationController.dispose();
     _textController.dispose();
     _sheetController.dispose();
     _session.dispose();
@@ -99,6 +113,12 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  String _locationContextForModel() {
+    return _locationController.value.promptContext ??
+        'User location snapshot: unavailable (location has not been shared). '
+            "Do not infer the user's current station.";
+  }
+
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
@@ -112,7 +132,12 @@ class _HomePageState extends State<HomePage> {
 
           return Stack(
             children: [
-              const Positioned.fill(child: BayHopTransitMap()),
+              Positioned.fill(
+                child: OsmMapBackground(
+                  location: _locationController,
+                  onRequestLocation: _locationController.refresh,
+                ),
+              ),
               DraggableScrollableSheet(
                 controller: _sheetController,
                 initialChildSize: _halfSize,
@@ -126,6 +151,7 @@ class _HomePageState extends State<HomePage> {
                     state: state,
                     surfaceId: surfaceId,
                     session: _session,
+                    locationController: _locationController,
                     onSuggestion: sendMessage,
                   );
                 },
@@ -156,6 +182,7 @@ class _BottomSheet extends StatelessWidget {
     required this.state,
     required this.surfaceId,
     required this.session,
+    required this.locationController,
     required this.onSuggestion,
   });
 
@@ -163,6 +190,7 @@ class _BottomSheet extends StatelessWidget {
   final ConversationState state;
   final String? surfaceId;
   final GenUiSession session;
+  final UserLocationController locationController;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -204,7 +232,8 @@ class _BottomSheet extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
               child: _NearbyRow(
-                onTap: () => onSuggestion('Next trains from Powell St'),
+                locationController: locationController,
+                onSuggestion: onSuggestion,
               ),
             ),
             Padding(
@@ -245,8 +274,95 @@ class _DragHandle extends StatelessWidget {
 }
 
 class _NearbyRow extends StatelessWidget {
-  const _NearbyRow({required this.onTap});
+  const _NearbyRow({
+    required this.locationController,
+    required this.onSuggestion,
+  });
 
+  final UserLocationController locationController;
+  final ValueChanged<String> onSuggestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<LocationSnapshot>(
+      valueListenable: locationController,
+      builder: (context, snapshot, _) {
+        final nearest = snapshot.nearestStop;
+        final hasStop = snapshot.hasLocation && nearest != null;
+        final title = hasStop ? nearest.stop.name : _titleFor(snapshot);
+        final subtitle = hasStop
+            ? '${nearest.stop.modeLabel} · ${nearest.distanceLabel} away'
+            : _subtitleFor(snapshot);
+
+        return _NearbyRowSurface(
+          title: title,
+          subtitle: subtitle,
+          isLocating: snapshot.status == LocationSnapshotStatus.locating,
+          hasLocation: snapshot.hasLocation,
+          onTap: () => _handleTap(snapshot),
+        );
+      },
+    );
+  }
+
+  void _handleTap(LocationSnapshot snapshot) {
+    final stop = snapshot.nearestStop?.stop;
+    if (snapshot.hasLocation && stop != null) {
+      onSuggestion('Next departures from ${stop.name}');
+      return;
+    }
+
+    unawaited(locationController.refresh());
+  }
+
+  String _titleFor(LocationSnapshot snapshot) {
+    switch (snapshot.status) {
+      case LocationSnapshotStatus.locating:
+        return 'Finding nearby stops';
+      case LocationSnapshotStatus.serviceDisabled:
+        return 'Location services off';
+      case LocationSnapshotStatus.permissionDenied:
+      case LocationSnapshotStatus.permissionDeniedForever:
+        return 'Location permission needed';
+      case LocationSnapshotStatus.unavailable:
+        return 'Location unavailable';
+      case LocationSnapshotStatus.idle:
+      case LocationSnapshotStatus.available:
+        return 'Use current location';
+    }
+  }
+
+  String _subtitleFor(LocationSnapshot snapshot) {
+    switch (snapshot.status) {
+      case LocationSnapshotStatus.locating:
+        return 'Checking BART, Muni, and Caltrain stops';
+      case LocationSnapshotStatus.serviceDisabled:
+        return 'Turn on services or search by station';
+      case LocationSnapshotStatus.permissionDenied:
+      case LocationSnapshotStatus.permissionDeniedForever:
+        return 'Search by station or update permissions';
+      case LocationSnapshotStatus.unavailable:
+        return snapshot.message ?? 'Search by station instead';
+      case LocationSnapshotStatus.idle:
+      case LocationSnapshotStatus.available:
+        return 'Find the closest Bay Area transit stop';
+    }
+  }
+}
+
+class _NearbyRowSurface extends StatelessWidget {
+  const _NearbyRowSurface({
+    required this.title,
+    required this.subtitle,
+    required this.isLocating,
+    required this.hasLocation,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool isLocating;
+  final bool hasLocation;
   final VoidCallback onTap;
 
   @override
@@ -264,21 +380,28 @@ class _NearbyRow extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const BayHopLiveDot(size: 9),
+              if (hasLocation)
+                const BayHopLiveDot(size: 9)
+              else
+                const Icon(
+                  Icons.my_location_rounded,
+                  size: 17,
+                  color: BayHopColors.aiBlue,
+                ),
               const SizedBox(width: 11),
               Expanded(
                 child: Text.rich(
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: 'Powell St',
+                        text: title,
                         style: BayHopText.body(
                           size: 13,
                           weight: FontWeight.w700,
                         ),
                       ),
                       TextSpan(
-                        text: ' · Red → SFO',
+                        text: ' · $subtitle',
                         style: BayHopText.body(
                           size: 13,
                           color: BayHopColors.ink2,
@@ -288,22 +411,17 @@ class _NearbyRow extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                '4',
-                style: BayHopText.mono(
-                  size: 17,
-                  weight: FontWeight.w700,
-                  color: BayHopColors.ink,
-                ),
-              ),
-              const SizedBox(width: 3),
-              Text(
-                'min',
-                style: BayHopText.body(
-                  size: 10,
+              if (isLocating)
+                const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 22,
                   color: BayHopColors.faint,
                 ),
-              ),
             ],
           ),
         ),

@@ -6,6 +6,52 @@ import 'package:genui_template/model/model_client.dart';
 
 void main() {
   group('GenUiSession', () {
+    test('uses the transit catalog and prompt by default', () {
+      late final _CapturingModelClient modelClient;
+      final session = GenUiSession(
+        modelClientBuilder: ({required systemPrompt}) {
+          return modelClient = _CapturingModelClient(
+            systemPrompt: systemPrompt,
+          );
+        },
+      );
+      addTearDown(session.dispose);
+
+      expect(modelClient.systemPrompt, contains('Bay Area transit app'));
+      expect(modelClient.systemPrompt, contains('TransitSummary'));
+    });
+
+    test('accepts a custom catalog builder and system prompt', () {
+      var builtCatalog = false;
+      late final _CapturingModelClient modelClient;
+      final session = GenUiSession(
+        catalogBuilder: () {
+          builtCatalog = true;
+          return BasicCatalogItems.asCatalog(
+            systemPromptFragments: ['Only render compact custom widgets.'],
+          );
+        },
+        systemPrompt: 'You are a custom GenUI assistant.',
+        modelClientBuilder: ({required systemPrompt}) {
+          return modelClient = _CapturingModelClient(
+            systemPrompt: systemPrompt,
+          );
+        },
+      );
+      addTearDown(session.dispose);
+
+      expect(builtCatalog, isTrue);
+      expect(
+        modelClient.systemPrompt,
+        contains('Only render compact custom widgets.'),
+      );
+      expect(
+        modelClient.systemPrompt,
+        contains('You are a custom GenUI assistant.'),
+      );
+      expect(modelClient.systemPrompt, isNot(contains('Bay Area transit app')));
+    });
+
     test('adds the current-time prefix to typed messages', () async {
       late final _CapturingModelClient modelClient;
       final session = GenUiSession(
@@ -27,12 +73,58 @@ void main() {
       );
     });
 
+    test('adds normalized context text to typed messages', () async {
+      late final _CapturingModelClient modelClient;
+      final session = GenUiSession(
+        currentTime: () => DateTime(2026, 6, 26, 9, 5),
+        contextProvider: () => '  Nearby:   Powell St\nMode: train\t ',
+        modelClientBuilder: ({required systemPrompt}) {
+          return modelClient = _CapturingModelClient(
+            systemPrompt: systemPrompt,
+          );
+        },
+      );
+      addTearDown(session.dispose);
+
+      session.sendMessage('Next trains from Embarcadero');
+      await _waitForHistoryLength(modelClient, 1);
+
+      expect(
+        modelClient.history.single.text,
+        'Current time is 09:05. Context: Nearby: Powell St Mode: train. '
+        'Request: Next trains from Embarcadero',
+      );
+    });
+
+    test('omits blank context text from typed messages', () async {
+      late final _CapturingModelClient modelClient;
+      final session = GenUiSession(
+        currentTime: () => DateTime(2026, 6, 26, 9, 5),
+        contextProvider: () => ' \n\t ',
+        modelClientBuilder: ({required systemPrompt}) {
+          return modelClient = _CapturingModelClient(
+            systemPrompt: systemPrompt,
+          );
+        },
+      );
+      addTearDown(session.dispose);
+
+      session.sendMessage('Next trains from Embarcadero');
+      await _waitForHistoryLength(modelClient, 1);
+
+      expect(
+        modelClient.history.single.text,
+        'Current time is 09:05. Request: Next trains from Embarcadero',
+      );
+    });
+
     testWidgets('adds the current-time prefix to button interactions', (
       tester,
     ) async {
       late final _CapturingModelClient modelClient;
       final session = GenUiSession(
         currentTime: () => DateTime(2026, 6, 26, 21, 7),
+        contextProvider: () => '  Nearby: Embarcadero\n ',
         modelClientBuilder: ({required systemPrompt}) {
           return modelClient = _CapturingModelClient(
             systemPrompt: systemPrompt,
@@ -61,7 +153,12 @@ void main() {
       await _pumpUntil(tester, () => modelClient.history.length >= 3);
 
       final prompt = modelClient.history[2].text;
-      expect(prompt, startsWith('Current time is 21:07. Request: '));
+      expect(
+        prompt,
+        startsWith(
+          'Current time is 21:07. Context: Nearby: Embarcadero. Request: ',
+        ),
+      );
       expect(prompt, contains('"name":"refresh_departures"'));
       expect(prompt, contains('"sourceComponentId":"root"'));
     });

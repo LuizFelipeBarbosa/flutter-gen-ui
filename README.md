@@ -5,7 +5,7 @@
 
 A starter Flutter app for building **Generative UI** (GenUI) experiences. Instead of the model replying with plain text, it replies with a _user interface_: buttons, lists, cards, forms, and more, rendered live as real Flutter widgets.
 
-This template wires up a model hosted on [Featherless.ai](https://featherless.ai) to Flutter's [`genui`](https://pub.dev/packages/genui) package so you can start shaping that experience right away. You bring two things: a **catalog** of widgets the model is allowed to use, and a **system prompt** that tells it how to behave. The template handles everything in between.
+This template wires up Inception Labs' [Mercury 2](https://docs.inceptionlabs.ai/get-started/get-started) model to Flutter's [`genui`](https://pub.dev/packages/genui) package so you can start shaping that experience right away. You bring two things: a **catalog** of widgets the model is allowed to use, and a **system prompt** that tells it how to behave. The template handles everything in between.
 
 New to GenUI? That's fine. This README walks you through it from scratch, including installing Flutter.
 
@@ -22,7 +22,7 @@ So the two knobs you'll touch most are:
 - **`lib/catalog.dart`** — _what_ the model can build (the widget vocabulary).
 - **`lib/prompt.dart`** — _how_ the model should behave (persona, tone, rules).
 
-Everything else in this template is plumbing that connects those two things to Featherless and to the screen.
+Everything else in this template is plumbing that connects those two things to Mercury 2 and to the screen.
 
 ---
 
@@ -94,12 +94,12 @@ This section assumes you have **never installed Flutter**. We'll run the app as 
 
 This project targets the Flutter SDK that ships **Dart `^3.12.1`** (see [pubspec.yaml](pubspec.yaml)). If `flutter doctor` reports an older Dart, run `flutter upgrade`.
 
-### 2. Get a Featherless API key
+### 2. Get an Inception API key
 
-The app talks to a model hosted on Featherless, which needs an API key.
+The app talks to Mercury 2 through the Inception API, which needs an API key.
 
-1. Go to [featherless.ai](https://featherless.ai) and sign in.
-2. Open your account settings and create an API key.
+1. Go to the [Inception Platform](https://platform.inceptionlabs.ai/) and sign in.
+2. Open [API Keys](https://platform.inceptionlabs.ai/dashboard/api-keys) and create an API key.
 3. Copy the key somewhere safe. You'll paste it in the next step.
 
 The key is **not** stored in the project. You pass it in at run time, so it never ends up in source control.
@@ -125,31 +125,31 @@ flutter config --enable-windows-desktop
 flutter config --enable-linux-desktop
 ```
 
-Then run, passing your Featherless key in via `--dart-define`. Add
+Then run, passing your Inception key in via `--dart-define`. Add
 `KEY_511` if you want local desktop live 511 departures for Muni, Caltrain,
 AC Transit, VTA, ferries, and other monitored Bay Area operators. Use the
 device matching your OS:
 
 ```sh
 # macOS
-flutter run -d macos --dart-define=FEATHERLESS_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
+flutter run -d macos --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 # Windows
-flutter run -d windows --dart-define=FEATHERLESS_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
+flutter run -d windows --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 # Linux
-flutter run -d linux --dart-define=FEATHERLESS_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
+flutter run -d linux --dart-define=INCEPTION_API_KEY=your_key_here --dart-define=KEY_511=your_511_token
 ```
 
 Replace `your_key_here` with the key from step 2. The first build takes a minute or two; later runs are faster.
 Replace `your_511_token` with a token from 511 SF Bay Open Data, or omit that
 flag if you only need BART's public real-time feed and planned estimates.
 
-> **Windows note:** In PowerShell the command above works as-is. If your key contains special characters, wrap the whole `--dart-define` value in quotes: `"--dart-define=FEATHERLESS_API_KEY=your_key_here"`.
+> **Windows note:** In PowerShell the command above works as-is. If your key contains special characters, wrap the whole `--dart-define` value in quotes: `"--dart-define=INCEPTION_API_KEY=your_key_here"`.
 
-> **Why `--dart-define`?** It injects keys as compile-time constants read with `String.fromEnvironment(...)` (see [lib/model/featherless_model_client.dart](lib/model/featherless_model_client.dart) and [lib/transit/bart_departures_client.dart](lib/transit/bart_departures_client.dart)). This keeps secrets out of the codebase for local desktop runs. Do not ship public web/mobile builds with `KEY_511` embedded; use a server-side proxy for production 511 access.
+> **Why `--dart-define`?** It injects keys as compile-time constants read with `String.fromEnvironment(...)` (see [lib/model/inception_model_client.dart](lib/model/inception_model_client.dart) and [lib/transit/bart_departures_client.dart](lib/transit/bart_departures_client.dart)). This keeps secrets out of the codebase for local desktop runs. Do not ship public web/mobile builds with `KEY_511` embedded; use a server-side proxy for production 511 access.
 
 Once it's running, type a request into the box at the bottom, for example _"Make a list of 3 fruits with their emojis, and a button to add a new random fruit to the list"_ The left side shows the rendered UI; the right side shows the raw A2UI JSON the model produced, so you can see exactly what it asked for.
 
-> **Tip:** Tired of typing the long command? Most editors let you save it. In VS Code, add a `launch.json` config with `"args": ["--dart-define=FEATHERLESS_API_KEY=your_key_here", "--dart-define=KEY_511=your_511_token"]`.
+> **Tip:** Tired of typing the long command? Most editors let you save it. In VS Code, add a `launch.json` config with `"args": ["--dart-define=INCEPTION_API_KEY=your_key_here", "--dart-define=KEY_511=your_511_token"]`.
 
 ---
 
@@ -190,7 +190,7 @@ Start here. You can build a surprising amount just by editing these two.
 
 - **Teach the model new tricks.** Add a custom component to [`lib/catalog.dart`](lib/catalog.dart). Once it's in the catalog, the model can use it.
 - **Change the personality.** Rewrite the string in [`lib/prompt.dart`](lib/prompt.dart) to give the assistant a focus, a tone, or domain rules.
-- **Try a different model.** Change `_defaultModel` in [`lib/model/featherless_model_client.dart`](lib/model/featherless_model_client.dart), or write a new `ModelClient` subclass for a different provider.
+- **Try a different model.** Change `_defaultModel` in [`lib/model/inception_model_client.dart`](lib/model/inception_model_client.dart), or write a new `ModelClient` subclass for a different provider.
 - **Learn the framework.** See the [`genui` package on pub.dev](https://pub.dev/packages/genui) for the full catalog API and A2UI format.
 
 Happy building.

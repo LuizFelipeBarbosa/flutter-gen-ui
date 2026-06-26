@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/catalog.dart';
+import 'package:genui_template/catalog.dart' as default_catalog;
 import 'package:genui_template/model/model_client.dart';
-import 'package:genui_template/prompt.dart';
+import 'package:genui_template/prompt.dart' as default_prompt;
+
+typedef GenUiCatalogBuilder = Catalog Function();
+typedef GenUiContextProvider = String? Function();
 
 /// Owns the GenUI pipeline for a single screen and disposes it as a unit.
 ///
@@ -20,11 +23,15 @@ class GenUiSession {
   GenUiSession({
     required ModelClient Function({required String systemPrompt})
     modelClientBuilder,
+    GenUiCatalogBuilder? catalogBuilder,
+    String systemPrompt = default_prompt.systemPrompt,
+    GenUiContextProvider? contextProvider,
     DateTime Function()? currentTime,
-  }) : _currentTime = currentTime ?? DateTime.now {
+  }) : _contextProvider = contextProvider ?? _emptyContext,
+       _currentTime = currentTime ?? DateTime.now {
     /// The catalog defines the surfaces the model can render and how to
     /// render them.
-    final catalog = buildCatalog();
+    final catalog = (catalogBuilder ?? default_catalog.buildCatalog)();
 
     // The controller renders surfaces from the catalog and tracks which ones
     // currently exist.
@@ -48,7 +55,13 @@ class GenUiSession {
     _transport = A2uiTransportAdapter(
       onSend: (message) async {
         await _modelClient
-            .sendMessage(_promptFor(message, currentTime: _currentTime()))
+            .sendMessage(
+              _promptFor(
+                message,
+                currentTime: _currentTime(),
+                contextText: _contextProvider(),
+              ),
+            )
             .forEach(_transport.addChunk);
       },
     );
@@ -64,6 +77,7 @@ class GenUiSession {
   late final ModelClient _modelClient;
   late final A2uiTransportAdapter _transport;
   late final Conversation _conversation;
+  final GenUiContextProvider _contextProvider;
   final DateTime Function() _currentTime;
 
   /// The raw A2UI JSON of the current (or most recent) model turn, updated live
@@ -96,10 +110,20 @@ class GenUiSession {
   static String _promptFor(
     ChatMessage message, {
     required DateTime currentTime,
+    String? contextText,
   }) {
     final request = _requestTextFor(message);
+    final normalizedContext = _normalizeContext(contextText);
 
-    return 'Current time is ${_formatTime(currentTime)}. Request: $request';
+    final prompt = StringBuffer(
+      'Current time is ${_formatTime(currentTime)}.',
+    );
+    if (normalizedContext != null) {
+      prompt.write(' Context: ${_sentence(normalizedContext)}');
+    }
+    prompt.write(' Request: $request');
+
+    return prompt.toString();
   }
 
   static String _requestTextFor(ChatMessage message) {
@@ -114,6 +138,19 @@ class GenUiSession {
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
+
+  static String? _normalizeContext(String? contextText) {
+    final normalized = contextText?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized == null || normalized.isEmpty) return null;
+    return normalized;
+  }
+
+  static String _sentence(String text) {
+    if (RegExp(r'[.!?]$').hasMatch(text)) return text;
+    return '$text.';
+  }
+
+  static String? _emptyContext() => null;
 
   /// Looks up the render context for a surface by its id.
   ///

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:genui_template/home_page.dart';
+import 'package:genui_template/shell_page.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -23,7 +23,7 @@ class MainApp extends StatelessWidget {
       theme: base.copyWith(
         textTheme: GoogleFonts.hankenGroteskTextTheme(base.textTheme),
       ),
-      home: const HomePage(),
+      home: const BayHopShellPage(),
     );
   }
 }
