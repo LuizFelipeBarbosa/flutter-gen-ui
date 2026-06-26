@@ -15,7 +15,7 @@ import 'package:genui_template/prompt.dart';
 ///
 /// It deliberately stays thin: surface tracking and waiting state are read
 /// straight from [Conversation]'s [Conversation.state], not re-implemented
-/// here. The session takes ownership of [modelClient] and disposes it too.
+/// here. The session takes ownership of the model client and disposes it too.
 class GenUiSession {
   GenUiSession({
     required ModelClient Function({required String systemPrompt})

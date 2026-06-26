@@ -1,0 +1,284 @@
+import 'dart:convert';
+
+import 'package:genui/genui.dart';
+import 'package:genui_template/transit/transit_widgets.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
+
+final List<CatalogItem> transitCatalogItems = [
+  transitSummaryItem,
+  transitJourneyItem,
+  transitDeparturesItem,
+  transitLiveDeparturesItem,
+  transitAlertItem,
+  transitNoteItem,
+];
+
+final CatalogItem transitSummaryItem = CatalogItem(
+  name: 'TransitSummary',
+  dataSchema: S.object(
+    description:
+        'A compact summary for a Bay Area transit result. Use once at the top.',
+    properties: {
+      'intent': S.string(
+        description: 'The request type.',
+        enumValues: ['trip', 'departures', 'status', 'info'],
+      ),
+      'summary': S.string(description: 'One short plain-language answer.'),
+      'sourceLabel': S.string(
+        description: 'Optional small label such as live feed or planner.',
+      ),
+    },
+    required: ['summary'],
+  ),
+  widgetBuilder: (context) {
+    return TransitSummaryCard.fromJson(context.data as JsonMap);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitSummary',
+        'intent': 'trip',
+        'summary': 'The Red Line runs straight to SFO with no transfers.',
+      },
+    ]),
+  ],
+);
+
+final CatalogItem transitJourneyItem = CatalogItem(
+  name: 'TransitJourney',
+  dataSchema: S.object(
+    description:
+        'A trip option card with ride, change, and walk legs. Use one to '
+        'three cards for trip planning, soonest or best first.',
+    properties: {
+      'recommended': S.boolean(
+        description: 'True for the best option. Use on one journey at most.',
+      ),
+      'tag': S.string(
+        description: 'Short label such as Fastest, Direct, Cheapest.',
+      ),
+      'from': S.string(description: 'Origin station or place.'),
+      'to': S.string(description: 'Destination station or place.'),
+      'depart': S.string(description: 'Departure clock time, H:MM or HH:MM.'),
+      'arrive': S.string(description: 'Arrival clock time, H:MM or HH:MM.'),
+      'duration': S.integer(description: 'Whole trip duration in minutes.'),
+      'changes': S.integer(description: 'Number of transfers.'),
+      'fare': S.string(description: 'Fare amount, with or without a dollar.'),
+      'crowd': S.string(
+        description: 'Estimated crowding.',
+        enumValues: ['Quiet', 'Some seats', 'Busy'],
+      ),
+      'legs': S.list(
+        description: 'Ordered trip legs.',
+        items: _legSchema,
+        minItems: 1,
+      ),
+    },
+    required: ['from', 'to', 'depart', 'duration', 'changes', 'legs'],
+  ),
+  widgetBuilder: (context) {
+    return TransitJourneyCard.fromJson(context.data as JsonMap);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitJourney',
+        'recommended': true,
+        'tag': 'Direct',
+        'from': 'Downtown Berkeley',
+        'to': 'SFO',
+        'depart': '9:08',
+        'arrive': '10:06',
+        'duration': 58,
+        'changes': 0,
+        'fare': '11.95',
+        'crowd': 'Some seats',
+        'legs': [
+          {
+            'type': 'ride',
+            'line': 'bart-red',
+            'from': 'Downtown Berkeley',
+            'to': 'SFO',
+            'mins': 58,
+            'stops': 18,
+          },
+        ],
+      },
+    ]),
+  ],
+);
+
+final CatalogItem transitDeparturesItem = CatalogItem(
+  name: 'TransitDepartures',
+  dataSchema: S.object(
+    description:
+        'A departure board for planned or model-estimated train departures.',
+    properties: {
+      'station': S.string(description: 'Station name.'),
+      'live': S.boolean(description: 'Whether these departures are live.'),
+      'list': S.list(
+        description: 'Departures sorted by soonest first.',
+        items: _departureSchema,
+        minItems: 1,
+        maxItems: 8,
+      ),
+    },
+    required: ['station', 'list'],
+  ),
+  widgetBuilder: (context) {
+    return TransitDeparturesCard.fromJson(context.data as JsonMap);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitDepartures',
+        'station': 'Embarcadero',
+        'live': false,
+        'list': [
+          {
+            'line': 'bart-yellow',
+            'dest': 'SFO / Millbrae',
+            'plat': '2',
+            'mins': 2,
+          },
+          {
+            'line': 'muni-n',
+            'dest': 'Ocean Beach',
+            'mins': 3,
+          },
+        ],
+      },
+    ]),
+  ],
+);
+
+final CatalogItem transitLiveDeparturesItem = CatalogItem(
+  name: 'TransitLiveDepartures',
+  dataSchema: S.object(
+    description:
+        'A live BART departure board fetched from BART for a known station.',
+    properties: {
+      'stationName': S.string(description: 'Human-readable BART station name.'),
+      'stationAbbr': S.string(
+        description: 'Four-letter BART station abbreviation, e.g. EMBR.',
+      ),
+    },
+    required: ['stationAbbr'],
+  ),
+  widgetBuilder: (context) {
+    return LiveBartDeparturesBoard.fromJson(context.data as JsonMap);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitLiveDepartures',
+        'stationName': 'Embarcadero',
+        'stationAbbr': 'EMBR',
+      },
+    ]),
+  ],
+);
+
+final CatalogItem transitAlertItem = CatalogItem(
+  name: 'TransitAlert',
+  dataSchema: S.object(
+    description: 'A service status card for a BART, Muni, or Caltrain line.',
+    properties: {
+      'line': S.string(description: 'Exact line id.'),
+      'status': S.string(
+        description: 'Service status.',
+        enumValues: ['good', 'minor', 'major'],
+      ),
+      'detail': S.string(description: 'Short plain-language status detail.'),
+    },
+    required: ['line', 'status'],
+  ),
+  widgetBuilder: (context) {
+    return TransitAlertCard.fromJson(context.data as JsonMap);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitAlert',
+        'line': 'bart-yellow',
+        'status': 'minor',
+        'detail': 'About 10-minute delays while trains recover.',
+      },
+    ]),
+  ],
+);
+
+final CatalogItem transitNoteItem = CatalogItem(
+  name: 'TransitNote',
+  dataSchema: S.object(
+    description: 'A short note for fare, transfer, or uncertainty context.',
+    properties: {
+      'text': S.string(description: 'Note text.'),
+      'tone': S.string(
+        description: 'Use warning for blocked live data or caution.',
+        enumValues: ['neutral', 'warning'],
+      ),
+    },
+    required: ['text'],
+  ),
+  widgetBuilder: (context) {
+    return TransitNoteCard.fromJson(context.data as JsonMap);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitNote',
+        'text':
+            'Caltrain and BART charge separate fares. '
+            'Tap Clipper for each leg.',
+      },
+    ]),
+  ],
+);
+
+final Schema _legSchema = S.object(
+  properties: {
+    'type': S.string(enumValues: ['ride', 'change', 'walk']),
+    'line': S.string(
+      description:
+          'Exact line id for ride legs. Omit for change and walk legs.',
+    ),
+    'from': S.string(description: 'Ride origin station.'),
+    'to': S.string(description: 'Ride or walk destination.'),
+    'station': S.string(description: 'Transfer station for change legs.'),
+    'mins': S.integer(description: 'Leg duration in minutes.'),
+    'stops': S.integer(description: 'Ride stop count.'),
+  },
+  required: ['type', 'mins'],
+);
+
+final Schema _departureSchema = S.object(
+  properties: {
+    'line': S.string(description: 'Exact line id.'),
+    'dest': S.string(description: 'Train destination or terminus.'),
+    'plat': S.string(description: 'Optional platform.'),
+    'mins': S.integer(description: 'Minutes until departure.'),
+    'live': S.boolean(description: 'Whether this entry is live.'),
+  },
+  required: ['line', 'dest', 'mins'],
+);
+
+const String transitCatalogRules = '''
+Prefer the custom Bay Area transit components over generic cards or text:
+- Use TransitSummary once at the top of each answer.
+- Use TransitJourney for trip options.
+- Use TransitLiveDepartures for live BART departure requests when you know the BART abbreviation.
+- Use TransitDepartures for planned Muni/Caltrain departures or BART departures only when live station data is not applicable.
+- Use TransitAlert for service status.
+- Use TransitNote only for brief extra context.
+
+Line ids must be one of: bart-yellow, bart-orange, bart-green, bart-blue,
+bart-red, bart-beige, muni-j, muni-k, muni-l, muni-m, muni-n, muni-t,
+caltrain.
+''';
