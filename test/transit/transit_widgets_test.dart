@@ -33,9 +33,10 @@ void main() {
     );
 
     expect(find.text('Recommended'), findsOneWidget);
-    expect(find.text('Downtown Berkeley  9:05'), findsOneWidget);
-    expect(find.text('SFO  10:03'), findsOneWidget);
+    expect(find.text('9:05 → 10:03'), findsOneWidget);
     expect(find.text('Ride to SFO'), findsOneWidget);
+    expect(find.textContaining('Depart Downtown Berkeley'), findsOneWidget);
+    expect(find.textContaining('Arrive SFO'), findsOneWidget);
   });
 
   testWidgets('TransitJourneyCard normalizes OAK connector leg only', (
@@ -82,9 +83,9 @@ void main() {
     );
 
     expect(find.text('58'), findsOneWidget);
-    expect(find.text('11:12 -> 12:10'), findsOneWidget);
-    expect(find.text('Oakland Airport  12:10'), findsOneWidget);
-    expect(find.textContaining('1 stops - 9 min'), findsOneWidget);
+    expect(find.text('11:12 → 12:10'), findsOneWidget);
+    expect(find.textContaining('Arrive Oakland Airport'), findsOneWidget);
+    expect(find.textContaining('1 stops · 9 min'), findsOneWidget);
   });
 
   testWidgets('TransitJourneyCard leaves non-connector beige legs alone', (
@@ -117,8 +118,8 @@ void main() {
       ),
     );
 
-    expect(find.text('10:00 -> 10:30'), findsOneWidget);
-    expect(find.textContaining('7 stops - 30 min'), findsOneWidget);
+    expect(find.text('10:00 → 10:30'), findsOneWidget);
+    expect(find.textContaining('7 stops · 30 min'), findsOneWidget);
   });
 
   testWidgets('TransitDeparturesCard renders departure rows', (tester) async {
@@ -148,7 +149,7 @@ void main() {
     expect(find.text('LIVE'), findsOneWidget);
     expect(find.text('SFO / Millbrae'), findsOneWidget);
     expect(find.text('Ocean Beach'), findsOneWidget);
-    expect(find.text('2 min'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
   });
 
   testWidgets('TransitDeparturesCard renders live 511 metadata', (

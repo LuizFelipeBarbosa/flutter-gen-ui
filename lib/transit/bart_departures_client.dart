@@ -391,7 +391,7 @@ class LiveDeparturesClient {
     return Uri.https('api.bart.gov', '/api/etd.aspx', {
       'cmd': 'etd',
       'orig': stationAbbr,
-      'key': bartApiKey,
+      'key': _effectiveBartApiKey,
       'json': 'y',
     });
   }
@@ -654,6 +654,11 @@ class LiveDeparturesClient {
         '--dart-define=KEY_511=your_511_token.',
       );
     }
+  }
+
+  String get _effectiveBartApiKey {
+    final trimmed = bartApiKey.trim();
+    return trimmed.isEmpty ? defaultBartApiKey : trimmed;
   }
 
   void close() {

@@ -65,6 +65,44 @@ void main() {
       },
     );
 
+    test('uses the public demo key when BART_API_KEY is blank', () async {
+      late Uri requestedUrl;
+      final client = BartDeparturesClient(
+        bartApiKey: '',
+        httpClient: MockClient((request) async {
+          requestedUrl = request.url;
+          return http.Response(
+            jsonEncode({
+              'root': {
+                'station': [
+                  {
+                    'name': 'Embarcadero',
+                    'etd': [
+                      {
+                        'destination': 'Richmond',
+                        'estimate': [
+                          {
+                            'minutes': '4',
+                            'platform': '2',
+                            'color': 'RED',
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            }),
+            200,
+          );
+        }),
+      );
+
+      await client.fetchDepartures('EMBR');
+
+      expect(requestedUrl.queryParameters['key'], 'MW9S-E7SL-26DU-VV8V');
+    });
+
     test('surfaces nested BART API errors', () async {
       final client = BartDeparturesClient(
         httpClient: MockClient(

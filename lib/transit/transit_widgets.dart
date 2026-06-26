@@ -3,8 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:genui_template/transit/_json.dart' as json_value;
 import 'package:genui_template/transit/bart_departures_client.dart';
+import 'package:genui_template/transit/bayhop_atoms.dart';
+import 'package:genui_template/transit/bayhop_tokens.dart';
 import 'package:genui_template/transit/transit_lines.dart';
 
+/// The lead-in card: the assistant's one-line answer for a transit request,
+/// marked with the "generative" sparkle so it reads as a composed result.
 class TransitSummaryCard extends StatelessWidget {
   const TransitSummaryCard({
     required this.summary,
@@ -27,27 +31,40 @@ class TransitSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final label = sourceLabel ?? intent;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context),
-      child: Column(
+      decoration: bayHopCardDecoration(),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Pill(
-            icon: Icons.auto_awesome_rounded,
-            label: label,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            summary,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              height: 1.3,
+          const BayHopAiSpark(size: 30),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: BayHopText.body(
+                    size: 10,
+                    weight: FontWeight.w700,
+                    color: BayHopColors.faint,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  summary,
+                  style: BayHopText.body(
+                    size: 15.5,
+                    weight: FontWeight.w700,
+                    height: 1.3,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -56,6 +73,8 @@ class TransitSummaryCard extends StatelessWidget {
   }
 }
 
+/// A single trip option, rendered as BayHop's featured-route card: a hero
+/// duration, a [BayHopJourneyStrip], and an expandable step-by-step timeline.
 class TransitJourneyCard extends StatefulWidget {
   const TransitJourneyCard({required this.journey, super.key});
 
@@ -84,89 +103,64 @@ class _TransitJourneyCardState extends State<TransitJourneyCard> {
   @override
   Widget build(BuildContext context) {
     final journey = widget.journey;
-    final theme = Theme.of(context);
     final timeline = journey.timeline;
+    final strip = _JourneyStripData.fromJourney(journey);
+    final badge = journey.recommended
+        ? 'Recommended'
+        : (journey.tag.isNotEmpty ? journey.tag : 'Route');
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         onTap: () => setState(() => _isOpen = !_isOpen),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: _cardDecoration(
-            context,
-            emphasized: _isOpen || journey.recommended,
-          ),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 15),
+          decoration: bayHopCardDecoration(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _DurationBadge(duration: journey.duration),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${journey.depart} -> ${timeline.arrive}',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            if (journey.recommended)
-                              const _StatusChip(
-                                label: 'Recommended',
-                                color: Color(0xFF3DD17F),
-                              ),
-                            if (journey.tag.isNotEmpty)
-                              _StatusChip(
-                                label: journey.tag,
-                                icon: journey.tag.toLowerCase() == 'fastest'
-                                    ? Icons.bolt_rounded
-                                    : null,
-                                color: theme.colorScheme.primary,
-                              ),
-                            _MutedChip(label: journey.factsLabel),
-                          ],
-                        ),
-                      ],
+                  _BadgePill(
+                    label: badge,
+                    recommended: journey.recommended,
+                  ),
+                  const Spacer(),
+                  if (journey.fareLabel.isNotEmpty)
+                    Text(
+                      journey.fareLabel,
+                      style: BayHopText.mono(
+                        size: 14,
+                        color: BayHopColors.ink,
+                      ),
                     ),
-                  ),
-                  Icon(
-                    _isOpen
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
                 ],
               ),
+              const SizedBox(height: 11),
+              _JourneyHero(journey: journey, arrive: timeline.arrive),
               const SizedBox(height: 16),
-              _JourneyStrip(journey: journey, timeline: timeline),
+              BayHopJourneyStrip(
+                segments: strip.segments,
+                startColor: strip.startColor,
+                endColor: strip.endColor,
+                walkStart: strip.walkStart,
+                walkEnd: strip.walkEnd,
+                showWalkLabels: strip.showWalkLabels,
+              ),
+              if (!_isOpen)
+                const Padding(
+                  padding: EdgeInsets.only(top: 13),
+                  child: _StepByStepHint(),
+                ),
               if (_isOpen) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 15),
                 _JourneySteps(timeline: timeline),
-                if (journey.crowd.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _CrowdIndicator(crowd: journey.crowd),
-                      const Spacer(),
-                      _MutedChip(label: 'Depart ${journey.depart}'),
-                    ],
-                  ),
-                ],
+                const SizedBox(height: 2),
+                const _HideStepsHint(),
               ],
             ],
           ),
@@ -176,6 +170,501 @@ class _TransitJourneyCardState extends State<TransitJourneyCard> {
   }
 }
 
+class _JourneyHero extends StatelessWidget {
+  const _JourneyHero({required this.journey, required this.arrive});
+
+  final TransitJourney journey;
+  final String arrive;
+
+  @override
+  Widget build(BuildContext context) {
+    final changesText = journey.changes == 0
+        ? 'Direct'
+        : journey.changes == 1
+        ? '1 change'
+        : '${journey.changes} changes';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          '${journey.duration}',
+          style: BayHopText.display(
+            size: 48,
+            height: 0.85,
+            letterSpacing: -1.5,
+          ),
+        ),
+        const SizedBox(width: 11),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'min',
+                style: BayHopText.body(size: 13, weight: FontWeight.w600),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${journey.depart} → $arrive',
+                style: BayHopText.mono(),
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                changesText,
+                style: BayHopText.body(
+                  size: 12.5,
+                  weight: FontWeight.w600,
+                  color: BayHopColors.ink2,
+                ),
+              ),
+              if (journey.crowd.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  journey.crowd,
+                  style: BayHopText.body(size: 11, color: BayHopColors.faint),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BadgePill extends StatelessWidget {
+  const _BadgePill({required this.label, required this.recommended});
+
+  final String label;
+  final bool recommended;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: BayHopColors.ink,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (recommended) ...[
+            const Icon(Icons.star_rounded, size: 13, color: Colors.white),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            label,
+            style: BayHopText.body(
+              size: 11,
+              weight: FontWeight.w600,
+              color: Colors.white,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepByStepHint extends StatelessWidget {
+  const _StepByStepHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          'Step-by-step',
+          style: BayHopText.body(
+            size: 12,
+            weight: FontWeight.w600,
+            color: BayHopColors.aiBlue,
+          ),
+        ),
+        const SizedBox(width: 5),
+        const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          size: 16,
+          color: BayHopColors.aiBlue,
+        ),
+      ],
+    );
+  }
+}
+
+class _HideStepsHint extends StatelessWidget {
+  const _HideStepsHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          'Hide steps',
+          style: BayHopText.body(
+            size: 12,
+            weight: FontWeight.w600,
+            color: BayHopColors.faint,
+          ),
+        ),
+        const SizedBox(width: 5),
+        const Icon(
+          Icons.keyboard_arrow_up_rounded,
+          size: 16,
+          color: BayHopColors.faint,
+        ),
+      ],
+    );
+  }
+}
+
+class _JourneySteps extends StatelessWidget {
+  const _JourneySteps({required this.timeline});
+
+  final TransitTimeline timeline;
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = timeline.steps;
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: BayHopColors.hairline)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Column(
+          children: [
+            for (var i = 0; i < steps.length; i++)
+              _StepRow(
+                step: steps[i],
+                isFirst: i == 0,
+                isLast: i == steps.length - 1,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({
+    required this.step,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  final TransitTimelineStep step;
+  final bool isFirst;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = lineFor(step.line);
+    final spec = _RailSpec.forStep(step.kind, line.color);
+    final detail = _detailFor(line);
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 42,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                _timeLabel(),
+                textAlign: TextAlign.right,
+                style: BayHopText.mono(
+                  size: 11,
+                  color: const Color(0xFF59626A),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 11),
+          SizedBox(
+            width: 16,
+            child: CustomPaint(
+              painter: _StepRailPainter(
+                spec: spec,
+                isFirst: isFirst,
+                isLast: isLast,
+              ),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 15),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _titleFor(),
+                    style: BayHopText.body(weight: FontWeight.w600),
+                  ),
+                  if (detail.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      detail,
+                      style: BayHopText.body(
+                        size: 12.5,
+                        color: BayHopColors.muted,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Design convention: ride rows show a relative duration in the time column,
+  // every other kind shows its clock time.
+  String _timeLabel() {
+    if (step.kind == TransitTimelineStepKind.ride) {
+      return '${step.minutes} min';
+    }
+    return step.time;
+  }
+
+  String _titleFor() {
+    return switch (step.kind) {
+      TransitTimelineStepKind.origin => 'Depart ${step.station}',
+      TransitTimelineStepKind.destination => 'Arrive ${step.station}',
+      TransitTimelineStepKind.ride => 'Ride to ${step.to}',
+      TransitTimelineStepKind.change => 'Change at ${step.station}',
+      TransitTimelineStepKind.walk => 'Walk to ${step.to}',
+    };
+  }
+
+  String _detailFor(TransitLine line) {
+    switch (step.kind) {
+      case TransitTimelineStepKind.ride:
+        final lineText = '${line.operatorName} ${line.label}'.trim();
+        final stopsText = step.stops == null ? '' : '${step.stops} stops · ';
+        return '$lineText · $stopsText${step.minutes} min';
+      case TransitTimelineStepKind.change:
+      case TransitTimelineStepKind.walk:
+        return '${step.minutes} min';
+      case TransitTimelineStepKind.origin:
+      case TransitTimelineStepKind.destination:
+        return '';
+    }
+  }
+}
+
+class _RailSpec {
+  const _RailSpec({
+    required this.railColor,
+    required this.dashed,
+    required this.nodeRadius,
+    required this.nodeBorder,
+  });
+
+  factory _RailSpec.forStep(TransitTimelineStepKind kind, Color lineColor) {
+    const dashGray = Color(0xFFC6CDD2);
+    return switch (kind) {
+      TransitTimelineStepKind.ride => _RailSpec(
+        railColor: lineColor,
+        dashed: false,
+        nodeRadius: 0,
+        nodeBorder: Colors.transparent,
+      ),
+      TransitTimelineStepKind.change => const _RailSpec(
+        railColor: dashGray,
+        dashed: true,
+        nodeRadius: 7,
+        nodeBorder: Color(0xFF2A3036),
+      ),
+      TransitTimelineStepKind.walk => const _RailSpec(
+        railColor: dashGray,
+        dashed: true,
+        nodeRadius: 5.5,
+        nodeBorder: Color(0xFFAAB2B8),
+      ),
+      TransitTimelineStepKind.origin ||
+      TransitTimelineStepKind.destination => _RailSpec(
+        railColor: lineColor,
+        dashed: false,
+        nodeRadius: 7,
+        nodeBorder: lineColor,
+      ),
+    };
+  }
+
+  final Color railColor;
+  final bool dashed;
+  final double nodeRadius;
+  final Color nodeBorder;
+}
+
+class _StepRailPainter extends CustomPainter {
+  const _StepRailPainter({
+    required this.spec,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  final _RailSpec spec;
+  final bool isFirst;
+  final bool isLast;
+
+  static const double _nodeY = 9;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final top = isFirst ? _nodeY : 0.0;
+    final bottom = isLast ? _nodeY : size.height;
+
+    if (spec.dashed) {
+      // Dashes (3px wide, ~5px on / 5px off) to match the design rail.
+      final paint = Paint()
+        ..color = spec.railColor
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+      for (var y = top; y < bottom; y += 10) {
+        final end = (y + 5 > bottom) ? bottom : y + 5;
+        canvas.drawLine(Offset(cx, y), Offset(cx, end), paint);
+      }
+    } else {
+      final paint = Paint()
+        ..color = spec.railColor
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(Offset(cx, top), Offset(cx, bottom), paint);
+    }
+
+    if (spec.nodeRadius > 0) {
+      canvas
+        ..drawCircle(
+          Offset(cx, _nodeY),
+          spec.nodeRadius,
+          Paint()..color = BayHopColors.surface,
+        )
+        ..drawCircle(
+          Offset(cx, _nodeY),
+          spec.nodeRadius - 1.5,
+          Paint()
+            ..color = spec.nodeBorder
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3,
+        );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StepRailPainter old) =>
+      old.spec != spec || old.isFirst != isFirst || old.isLast != isLast;
+}
+
+/// Builds [BayHopJourneyStrip] inputs from a journey's legs: leading/trailing
+/// walks become the dotted tails, rides become colored segments, and changes
+/// insert a dark transfer node before the following ride.
+class _JourneyStripData {
+  const _JourneyStripData({
+    required this.segments,
+    required this.startColor,
+    required this.endColor,
+    required this.walkStart,
+    required this.walkEnd,
+    required this.showWalkLabels,
+  });
+
+  factory _JourneyStripData.fromJourney(TransitJourney journey) {
+    final legs = journey.legs;
+    var start = 0;
+    var end = legs.length;
+    var walkStart = '3';
+    var walkEnd = '4';
+    var hasWalkLabel = false;
+
+    if (legs.isNotEmpty && legs.first.type == TransitLegType.walk) {
+      walkStart = '${legs.first.minutes}';
+      hasWalkLabel = true;
+      start = 1;
+    }
+    if (end > start && legs[end - 1].type == TransitLegType.walk) {
+      walkEnd = '${legs[end - 1].minutes}';
+      hasWalkLabel = true;
+      end = end - 1;
+    }
+
+    final middle = legs.sublist(start, end);
+    final segments = <BayHopSegment>[];
+    var pendingTransfer = false;
+    for (final leg in middle) {
+      switch (leg.type) {
+        case TransitLegType.ride:
+          segments.add(
+            BayHopSegment(
+              color: lineFor(leg.line).color,
+              weight: leg.minutes.clamp(1, 100).toDouble(),
+              transfer: pendingTransfer,
+            ),
+          );
+          pendingTransfer = false;
+        case TransitLegType.change:
+          pendingTransfer = true;
+        case TransitLegType.walk:
+          segments.add(
+            BayHopSegment(
+              color: BayHopColors.faintLine,
+              weight: leg.minutes.clamp(2, 100).toDouble(),
+              dashed: true,
+            ),
+          );
+      }
+    }
+
+    if (segments.isEmpty) {
+      segments.add(
+        BayHopSegment(color: lineFor(journey.firstRide?.line).color),
+      );
+    }
+
+    return _JourneyStripData(
+      segments: segments,
+      startColor: lineFor(journey.firstRide?.line).color,
+      endColor: lineFor(journey.lastRide?.line).color,
+      walkStart: walkStart,
+      walkEnd: walkEnd,
+      showWalkLabels: hasWalkLabel,
+    );
+  }
+
+  final List<BayHopSegment> segments;
+  final Color startColor;
+  final Color endColor;
+  final String walkStart;
+  final String walkEnd;
+  final bool showWalkLabels;
+}
+
+/// A departures board: a station header with a live/planned status, then a
+/// white list of upcoming departures with line bullets and minute counts.
 class TransitDeparturesCard extends StatelessWidget {
   const TransitDeparturesCard({
     required this.station,
@@ -228,41 +717,146 @@ class TransitDeparturesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      decoration: _cardDecoration(context),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.place_rounded,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  station,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    station,
+                    style: BayHopText.display(size: 23),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Upcoming departures',
+                    style: BayHopText.body(size: 12, color: BayHopColors.muted),
+                  ),
+                ],
               ),
-              if (live && statusLabel == null)
-                const _LivePill()
-              else
-                _MutedChip(label: statusLabel ?? 'Planned'),
-            ],
+            ),
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: live && statusLabel == null
+                  ? const _LivePill()
+                  : _MutedStatusChip(label: statusLabel ?? 'Planned'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        DecoratedBox(
+          decoration: bayHopCardDecoration(radius: 18),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Column(
+              children: [
+                for (final departure in departures)
+                  _DepartureRow(departure: departure),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          for (final departure in departures)
-            _DepartureRow(departure: departure),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DepartureRow extends StatelessWidget {
+  const _DepartureRow({required this.departure});
+
+  final TransitDeparture departure;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = lineFor(departure.line);
+    final subline = _departureSubline(departure, line);
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: BayHopColors.hairline)),
       ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          children: [
+            BayHopLineBullet(
+              label: _shortLineName(line),
+              color: line.color,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    departure.destination,
+                    overflow: TextOverflow.ellipsis,
+                    style: BayHopText.body(weight: FontWeight.w600),
+                  ),
+                  if (subline.isNotEmpty) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      subline,
+                      overflow: TextOverflow.ellipsis,
+                      style: BayHopText.body(
+                        size: 11,
+                        color: BayHopColors.faint,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _DepartureEta(minutes: departure.minutes),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DepartureEta extends StatelessWidget {
+  const _DepartureEta({required this.minutes});
+
+  final int minutes;
+
+  @override
+  Widget build(BuildContext context) {
+    if (minutes <= 0) {
+      return Text(
+        'Now',
+        style: BayHopText.mono(
+          size: 18,
+          weight: FontWeight.w700,
+          color: BayHopColors.aiBlue,
+        ),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          '$minutes',
+          style: BayHopText.mono(
+            size: 25,
+            weight: FontWeight.w700,
+            color: BayHopColors.ink,
+          ),
+        ),
+        const SizedBox(width: 3),
+        Text(
+          'min',
+          style: BayHopText.body(size: 11, color: BayHopColors.faint),
+        ),
+      ],
     );
   }
 }
@@ -461,11 +1055,14 @@ class _LiveTransitDeparturesBoardState
   }
 }
 
+/// A service-status card: a colored line badge, a tone-coded status, and a
+/// short plain-language detail.
 class TransitAlertCard extends StatelessWidget {
   const TransitAlertCard({
     required this.line,
     required this.status,
     required this.detail,
+    this.updated,
     super.key,
   });
 
@@ -474,72 +1071,105 @@ class TransitAlertCard extends StatelessWidget {
       line: _string(json['line'], 'bart-yellow'),
       status: _string(json['status'], 'good'),
       detail: _string(json['detail']),
+      updated: _nullableString(json['updated']),
     );
   }
 
   final String line;
   final String status;
   final String detail;
+  final String? updated;
 
   @override
   Widget build(BuildContext context) {
     final transitLine = lineFor(line);
-    final statusInfo = _AlertStatusInfo.fromStatus(status);
-    final theme = Theme.of(context);
+    final info = _AlertStatusInfo.fromStatus(status);
 
     return Container(
       width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: _cardDecoration(context),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ColoredBox(
-              color: transitLine.color,
-              child: const SizedBox(width: 4),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(17),
+      decoration: bayHopCardDecoration(radius: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: transitLine.color,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  transitLine.label,
+                  style: BayHopText.body(
+                    size: 12,
+                    weight: FontWeight.w700,
+                    color: BayHopColors.contrastOn(transitLine.color),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        TransitLineBullet(id: line),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            transitLine.label,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        _StatusChip(
-                          label: statusInfo.label,
-                          color: statusInfo.color,
-                          icon: statusInfo.icon,
-                        ),
-                      ],
+                    Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: info.dotColor,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                    if (detail.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        detail,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          height: 1.45,
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Text(
+                        info.label,
+                        style: BayHopText.body(
+                          size: 15,
+                          weight: FontWeight.w700,
+                          color: info.textColor,
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
+            ],
+          ),
+          if (detail.isNotEmpty) ...[
+            const SizedBox(height: 13),
+            Text(
+              detail,
+              style: BayHopText.body(
+                size: 14.5,
+                color: BayHopColors.ink2,
+                height: 1.5,
+              ),
             ),
           ],
-        ),
+          if (updated != null && updated!.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const _StaticDot(color: BayHopColors.live),
+                const SizedBox(width: 7),
+                Text(
+                  'Updated $updated',
+                  style: BayHopText.mono(
+                    size: 11,
+                    weight: FontWeight.w500,
+                    color: BayHopColors.faint,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -547,6 +1177,7 @@ class TransitAlertCard extends StatelessWidget {
 
 enum TransitNoteTone { neutral, warning }
 
+/// A soft tinted note for fares, transfers, or live-data caveats.
 class TransitNoteCard extends StatelessWidget {
   const TransitNoteCard({
     required this.text,
@@ -566,36 +1197,34 @@ class TransitNoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final warning = tone == TransitNoteTone.warning;
-    final color = warning ? const Color(0xFFFFB020) : theme.colorScheme.primary;
+    final accent = warning ? BayHopColors.warn : BayHopColors.aiBlue;
+    final textColor = warning ? BayHopColors.warnText : BayHopColors.ink2;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
+        color: accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.24)),
+        border: Border.all(color: accent.withValues(alpha: 0.28)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             warning ? Icons.warning_amber_rounded : Icons.info_outline_rounded,
-            color: color,
+            color: accent,
             size: 18,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: warning
-                    ? const Color(0xFFFFD79A)
-                    : theme.colorScheme.onSurfaceVariant,
+              style: BayHopText.body(
+                weight: FontWeight.w600,
+                color: textColor,
                 height: 1.45,
-                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -605,48 +1234,9 @@ class TransitNoteCard extends StatelessWidget {
   }
 }
 
-class TransitLineBullet extends StatelessWidget {
-  const TransitLineBullet({
-    required this.id,
-    this.size = 24,
-    super.key,
-  });
-
-  final String id;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final line = lineFor(id);
-    final isCircle = line.shape == TransitBulletShape.circle;
-    final iconSize = size * 0.56;
-
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: line.color,
-        borderRadius: BorderRadius.circular(isCircle ? size / 2 : size * 0.28),
-      ),
-      child: isCircle
-          ? Text(
-              line.shortLabel,
-              style: TextStyle(
-                color: line.textColor,
-                fontSize: size * 0.48,
-                fontWeight: FontWeight.w900,
-                height: 1,
-              ),
-            )
-          : Icon(
-              Icons.train_rounded,
-              size: iconSize,
-              color: line.textColor,
-            ),
-    );
-  }
-}
+// ---------------------------------------------------------------------------
+// Data models — parsed from model output; shared by the cards above.
+// ---------------------------------------------------------------------------
 
 class TransitJourney {
   const TransitJourney({
@@ -969,538 +1559,16 @@ class TransitTimelineStep {
   final int? stops;
 }
 
-class _DurationBadge extends StatelessWidget {
-  const _DurationBadge({required this.duration});
+// ---------------------------------------------------------------------------
+// Presentation helpers shared by the cards.
+// ---------------------------------------------------------------------------
 
-  final int duration;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$duration',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            fontFeatures: const [FontFeature.tabularFigures()],
-            height: 0.95,
-          ),
-        ),
-        const SizedBox(width: 3),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Text(
-            'min',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
+String _shortLineName(TransitLine line) {
+  final label = line.label;
+  if (label.endsWith(' Line')) {
+    return label.substring(0, label.length - ' Line'.length);
   }
-}
-
-class _JourneyStrip extends StatelessWidget {
-  const _JourneyStrip({required this.journey, required this.timeline});
-
-  final TransitJourney journey;
-  final TransitTimeline timeline;
-
-  @override
-  Widget build(BuildContext context) {
-    final firstLine = lineFor(journey.firstRide?.line);
-    final lastLine = lineFor(journey.lastRide?.line);
-    final segments = <Widget>[
-      _EndpointDot(color: firstLine.color),
-    ];
-
-    for (final leg in journey.legs) {
-      switch (leg.type) {
-        case TransitLegType.ride:
-          segments.add(
-            Expanded(
-              flex: leg.minutes.clamp(1, 100),
-              child: _RideSegment(leg: leg),
-            ),
-          );
-        case TransitLegType.change:
-          segments.add(const _ChangeSegment());
-        case TransitLegType.walk:
-          segments.add(
-            Expanded(
-              flex: leg.minutes.clamp(2, 100),
-              child: _WalkSegment(minutes: leg.minutes),
-            ),
-          );
-      }
-    }
-    segments.add(_EndpointDot(color: lastLine.color, isEnd: true));
-
-    return Column(
-      children: [
-        SizedBox(height: 16, child: Row(children: segments)),
-        const SizedBox(height: 9),
-        Row(
-          children: [
-            Expanded(child: _StationTimeLabel(journey.from, journey.depart)),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _StationTimeLabel(journey.to, timeline.arrive),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _RideSegment extends StatelessWidget {
-  const _RideSegment({required this.leg});
-
-  final TransitLeg leg;
-
-  @override
-  Widget build(BuildContext context) {
-    final line = lineFor(leg.line);
-    return Container(
-      height: 12,
-      margin: const EdgeInsets.symmetric(horizontal: 1),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: line.color,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        '${leg.minutes}',
-        overflow: TextOverflow.fade,
-        softWrap: false,
-        style: TextStyle(
-          color: line.textColor,
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _WalkSegment extends StatelessWidget {
-  const _WalkSegment({required this.minutes});
-
-  final int minutes;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Container(
-      height: 12,
-      margin: const EdgeInsets.symmetric(horizontal: 1),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: color.withValues(alpha: 0.7),
-            width: 2,
-          ),
-        ),
-      ),
-      child: Text(
-        '$minutes',
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _ChangeSegment extends StatelessWidget {
-  const _ChangeSegment();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 18,
-      alignment: Alignment.center,
-      child: Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface,
-            width: 2.5,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EndpointDot extends StatelessWidget {
-  const _EndpointDot({required this.color, this.isEnd = false});
-
-  final Color color;
-  final bool isEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        color: isEnd ? Theme.of(context).colorScheme.surface : color,
-        shape: BoxShape.circle,
-        border: isEnd ? Border.all(color: color, width: 3) : null,
-      ),
-    );
-  }
-}
-
-class _StationTimeLabel extends StatelessWidget {
-  const _StationTimeLabel(this.station, this.time);
-
-  final String station;
-  final String time;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text.rich(
-      TextSpan(
-        text: station,
-        children: [
-          TextSpan(
-            text: '  $time',
-            style: TextStyle(color: theme.colorScheme.onSurface),
-          ),
-        ],
-      ),
-      overflow: TextOverflow.ellipsis,
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _JourneySteps extends StatelessWidget {
-  const _JourneySteps({required this.timeline});
-
-  final TransitTimeline timeline;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: _hairlineColor(context))),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Column(
-          children: [
-            for (final step in timeline.steps) _TimelineRow(step: step),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({required this.step});
-
-  final TransitTimelineStep step;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final line = lineFor(step.line);
-    final content = _contentForStep(step, line);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 16,
-          child: _RailMarker(step: step, line: line),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 44,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text(
-              step.time,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            child: content,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _contentForStep(TransitTimelineStep step, TransitLine line) {
-    return Builder(
-      builder: (context) {
-        final theme = Theme.of(context);
-        final bodyStyle = theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-        );
-        final metaStyle = theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600,
-        );
-
-        return switch (step.kind) {
-          TransitTimelineStepKind.origin => Text(
-            step.station,
-            style: bodyStyle,
-          ),
-          TransitTimelineStepKind.destination => Text(
-            '${step.station} - Arrive',
-            style: bodyStyle,
-          ),
-          TransitTimelineStepKind.ride => Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              TransitLineBullet(id: step.line, size: 20),
-              Text('Ride to ${step.to}', style: bodyStyle),
-              SizedBox(
-                width: double.infinity,
-                child: Text(
-                  '${line.operatorName} ${line.label}'
-                  '${step.stops == null ? '' : ' - ${step.stops} stops'}'
-                  ' - ${step.minutes} min',
-                  style: metaStyle,
-                ),
-              ),
-            ],
-          ),
-          TransitTimelineStepKind.change => Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Icon(
-                Icons.swap_vert_rounded,
-                size: 17,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              Text('Change at ${step.station}', style: bodyStyle),
-              SizedBox(
-                width: double.infinity,
-                child: Text('${step.minutes} min', style: metaStyle),
-              ),
-            ],
-          ),
-          TransitTimelineStepKind.walk => Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Icon(
-                Icons.directions_walk_rounded,
-                size: 17,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              Text('Walk to ${step.to}', style: bodyStyle),
-              SizedBox(
-                width: double.infinity,
-                child: Text('${step.minutes} min', style: metaStyle),
-              ),
-            ],
-          ),
-        };
-      },
-    );
-  }
-}
-
-class _RailMarker extends StatelessWidget {
-  const _RailMarker({required this.step, required this.line});
-
-  final TransitTimelineStep step;
-  final TransitLine line;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: Center(
-        child: switch (step.kind) {
-          TransitTimelineStepKind.ride => Container(
-            width: 4,
-            height: 42,
-            decoration: BoxDecoration(
-              color: line.color,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          TransitTimelineStepKind.walk => Container(
-            width: 4,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          TransitTimelineStepKind.change => const _SmallDot(outlined: true),
-          _ => const _SmallDot(),
-        },
-      ),
-    );
-  }
-}
-
-class _SmallDot extends StatelessWidget {
-  const _SmallDot({this.outlined = false});
-
-  final bool outlined;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 11,
-      height: 11,
-      decoration: BoxDecoration(
-        color: outlined
-            ? Theme.of(context).colorScheme.surface
-            : Theme.of(context).colorScheme.onSurface,
-        shape: BoxShape.circle,
-        border: outlined
-            ? Border.all(
-                color: Theme.of(context).colorScheme.onSurface,
-                width: 2,
-              )
-            : null,
-      ),
-    );
-  }
-}
-
-class _CrowdIndicator extends StatelessWidget {
-  const _CrowdIndicator({required this.crowd});
-
-  final String crowd;
-
-  @override
-  Widget build(BuildContext context) {
-    final crowdKey = crowd.toLowerCase();
-    final color = crowdKey.startsWith('busy')
-        ? const Color(0xFFFF6B6B)
-        : crowdKey.startsWith('some')
-        ? const Color(0xFFFFB020)
-        : const Color(0xFF3DD17F);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 7),
-        Text(
-          crowd,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DepartureRow extends StatelessWidget {
-  const _DepartureRow({required this.departure});
-
-  final TransitDeparture departure;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final line = lineFor(departure.line);
-    final subline = _departureSubline(departure, line);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: _hairlineColor(context))),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          children: [
-            TransitLineBullet(id: departure.line),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    departure.destination,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subline,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              departure.etaLabel,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: departure.minutes <= 2
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  return label;
 }
 
 String _departureSubline(TransitDeparture departure, TransitLine line) {
@@ -1521,6 +1589,31 @@ String _departureSubline(TransitDeparture departure, TransitLine line) {
   if (departure.platform != null) add('Plat ${departure.platform}');
 
   return parts.join(' - ');
+}
+
+class _MutedStatusChip extends StatelessWidget {
+  const _MutedStatusChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: BayHopColors.chipBg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: BayHopText.body(
+          size: 11.5,
+          weight: FontWeight.w700,
+          color: BayHopColors.muted,
+        ),
+      ),
+    );
+  }
 }
 
 enum _LiveDepartureStatus { live, planned, cached, offlineEstimate }
@@ -1546,10 +1639,10 @@ extension on _LiveDepartureStatus {
 
   Color get color {
     return switch (this) {
-      _LiveDepartureStatus.live => const Color(0xFF3DD17F),
-      _LiveDepartureStatus.planned => const Color(0xFF8EA4B8),
-      _LiveDepartureStatus.cached => const Color(0xFFFFB020),
-      _LiveDepartureStatus.offlineEstimate => const Color(0xFFFFB020),
+      _LiveDepartureStatus.live => BayHopColors.live,
+      _LiveDepartureStatus.planned => BayHopColors.faint,
+      _LiveDepartureStatus.cached => BayHopColors.warn,
+      _LiveDepartureStatus.offlineEstimate => BayHopColors.warn,
     };
   }
 }
@@ -1575,14 +1668,15 @@ class _LiveHeader extends StatelessWidget {
               '${_formatClock(updatedAt!.hour * 60 + updatedAt!.minute)}';
     return Row(
       children: [
-        _LiveDot(color: status.color),
+        _StaticDot(color: status.color),
         const SizedBox(width: 8),
         Text(
           '${status.headerLabel(sourceLabel)}$suffix'
           '${retrying ? ' - retrying' : ''}',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          style: BayHopText.body(
+            size: 12,
+            weight: FontWeight.w700,
             color: status.color,
-            fontWeight: FontWeight.w800,
             letterSpacing: 0.2,
           ),
         ),
@@ -1596,17 +1690,17 @@ class _LivePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _LiveDot(),
-        SizedBox(width: 6),
+        const _StaticDot(color: BayHopColors.live),
+        const SizedBox(width: 6),
         Text(
           'LIVE',
-          style: TextStyle(
-            color: Color(0xFF4FB0E8),
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
+          style: BayHopText.body(
+            size: 11,
+            weight: FontWeight.w700,
+            color: BayHopColors.live,
             letterSpacing: 0.5,
           ),
         ),
@@ -1615,19 +1709,22 @@ class _LivePill extends StatelessWidget {
   }
 }
 
-class _LiveDot extends StatelessWidget {
-  const _LiveDot({this.color = const Color(0xFF4FB0E8)});
+class _StaticDot extends StatelessWidget {
+  const _StaticDot({required this.color});
 
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 7,
-      height: 7,
+      width: 8,
+      height: 8,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.18), spreadRadius: 3),
+        ],
       ),
     );
   }
@@ -1643,7 +1740,7 @@ class _LoadingCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context),
+      decoration: bayHopCardDecoration(),
       child: Row(
         children: [
           const SizedBox(
@@ -1655,9 +1752,9 @@ class _LoadingCard extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
+              style: BayHopText.body(
+                weight: FontWeight.w600,
+                color: BayHopColors.muted,
               ),
             ),
           ),
@@ -1667,160 +1764,41 @@ class _LoadingCard extends StatelessWidget {
   }
 }
 
-class _Pill extends StatelessWidget {
-  const _Pill({
-    required this.label,
-    required this.color,
-    this.icon,
-  });
-
-  final String label;
-  final Color color;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 5),
-          ],
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.label,
-    required this.color,
-    this.icon,
-  });
-
-  final String label;
-  final Color color;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, color: color, size: 13),
-            const SizedBox(width: 3),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MutedChip extends StatelessWidget {
-  const _MutedChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
 class _AlertStatusInfo {
   const _AlertStatusInfo({
     required this.label,
-    required this.color,
-    required this.icon,
+    required this.dotColor,
+    required this.textColor,
   });
 
   factory _AlertStatusInfo.fromStatus(String status) {
     return switch (status) {
       'major' => const _AlertStatusInfo(
         label: 'Major disruption',
-        color: Color(0xFFFF6B6B),
-        icon: Icons.error_outline_rounded,
+        dotColor: BayHopColors.severe,
+        textColor: BayHopColors.severeText,
       ),
       'minor' => const _AlertStatusInfo(
         label: 'Minor delays',
-        color: Color(0xFFFFB020),
-        icon: Icons.warning_amber_rounded,
+        dotColor: BayHopColors.warn,
+        textColor: BayHopColors.warnText,
       ),
       _ => const _AlertStatusInfo(
         label: 'Good service',
-        color: Color(0xFF3DD17F),
-        icon: Icons.check_circle_outline_rounded,
+        dotColor: BayHopColors.good,
+        textColor: BayHopColors.good,
       ),
     };
   }
 
   final String label;
-  final Color color;
-  final IconData icon;
+  final Color dotColor;
+  final Color textColor;
 }
 
-BoxDecoration _cardDecoration(BuildContext context, {bool emphasized = false}) {
-  final scheme = Theme.of(context).colorScheme;
-  return BoxDecoration(
-    color: emphasized ? scheme.surfaceContainerHigh : scheme.surfaceContainer,
-    borderRadius: BorderRadius.circular(18),
-    border: Border.all(
-      color: emphasized
-          ? scheme.outlineVariant.withValues(alpha: 0.8)
-          : _hairlineColor(context),
-    ),
-  );
-}
-
-Color _hairlineColor(BuildContext context) =>
-    Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45);
+// ---------------------------------------------------------------------------
+// JSON + clock helpers and offline BART estimates (unchanged behavior).
+// ---------------------------------------------------------------------------
 
 List<Map<String, Object?>> _mapList(Object? value) => json_value.mapList(value);
 

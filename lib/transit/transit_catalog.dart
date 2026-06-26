@@ -218,6 +218,9 @@ final CatalogItem transitAlertItem = CatalogItem(
         enumValues: ['good', 'minor', 'major'],
       ),
       'detail': S.string(description: 'Short plain-language status detail.'),
+      'updated': S.string(
+        description: 'Optional clock time the status was last checked, H:MM.',
+      ),
     },
     required: ['line', 'status'],
   ),

@@ -4,14 +4,35 @@ import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:genui_template/conversation.dart';
 import 'package:genui_template/model/featherless_model_client.dart';
-import 'package:genui_template/widgets/widgets.dart';
+import 'package:genui_template/transit/bayhop_atoms.dart';
+import 'package:genui_template/transit/bayhop_tokens.dart';
+import 'package:genui_template/transit/transit_map.dart';
 
-const List<String> _suggestions = [
-  'Next trains from Embarcadero',
-  'Live Muni departures at stop 15184',
-  'Next AC Transit buses at my stop',
-  'Departures at 12th St Oakland',
-  'Downtown Berkeley to SFO',
+const List<_Suggestion> _suggestions = [
+  _Suggestion(
+    title: 'Downtown Berkeley → SFO',
+    subtitle: 'Trip · fastest 58 min',
+    query: 'Downtown Berkeley to SFO, leave now',
+    icon: Icons.alt_route_rounded,
+    tint: Color(0x1FED1C24),
+    iconColor: BayHopColors.red,
+  ),
+  _Suggestion(
+    title: 'Next trains from Embarcadero',
+    subtitle: 'Live departures',
+    query: 'Next trains from Embarcadero',
+    icon: Icons.departure_board_rounded,
+    tint: Color(0x1F0091D2),
+    iconColor: BayHopColors.aiBlue,
+  ),
+  _Suggestion(
+    title: 'Is the Yellow Line delayed?',
+    subtitle: 'Service status',
+    query: 'Is the Yellow Line delayed?',
+    icon: Icons.warning_amber_rounded,
+    tint: Color(0x24E8920B),
+    iconColor: BayHopColors.warn,
+  ),
 ];
 
 class HomePage extends StatefulWidget {
@@ -24,7 +45,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final GenUiSession _session;
   final _textController = TextEditingController();
+  final _sheetController = DraggableScrollableController();
   StreamSubscription<ConversationEvent>? _eventsSub;
+
+  static const double _minSize = 0.16;
+  static const double _halfSize = 0.52;
+  static const double _fullSize = 0.92;
 
   @override
   void initState() {
@@ -45,6 +71,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     unawaited(_eventsSub?.cancel());
     _textController.dispose();
+    _sheetController.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -55,44 +82,63 @@ class _HomePageState extends State<HomePage> {
 
     _session.sendMessage(request);
     _textController.clear();
+    FocusScope.of(context).unfocus();
+    _expandSheet();
+  }
+
+  void _expandSheet() {
+    if (!_sheetController.isAttached) return;
+    if (_sheetController.size < _halfSize - 0.01) {
+      unawaited(
+        _sheetController.animateTo(
+          _halfSize,
+          duration: const Duration(milliseconds: 340),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top;
+
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 20,
-        title: const Row(
-          children: [
-            Icon(Icons.train_rounded),
-            SizedBox(width: 10),
-            Text('Bay Area Transit'),
-          ],
-        ),
-      ),
+      resizeToAvoidBottomInset: false,
       body: ValueListenableBuilder<ConversationState>(
         valueListenable: _session.conversationState,
         builder: (context, state, _) {
-          final latestSurfaceId = state.surfaces.isEmpty
-              ? null
-              : state.surfaces.last;
+          final surfaceId = state.surfaces.isEmpty ? null : state.surfaces.last;
 
-          return Column(
+          return Stack(
             children: [
-              Expanded(
-                child: _TransitWorkspace(
-                  isProcessing: state.isWaiting,
-                  latestSurfaceId: latestSurfaceId,
-                  session: _session,
-                ),
+              const Positioned.fill(child: BayHopTransitMap()),
+              DraggableScrollableSheet(
+                controller: _sheetController,
+                initialChildSize: _halfSize,
+                minChildSize: _minSize,
+                maxChildSize: _fullSize,
+                snap: true,
+                snapSizes: const [_minSize, _halfSize, _fullSize],
+                builder: (context, scrollController) {
+                  return _BottomSheet(
+                    scrollController: scrollController,
+                    state: state,
+                    surfaceId: surfaceId,
+                    session: _session,
+                    onSuggestion: sendMessage,
+                  );
+                },
               ),
-              if (state.isWaiting) const LinearProgressIndicator(minHeight: 2),
-              MessageInput(
-                controller: _textController,
-                isProcessing: state.isWaiting,
-                onSend: sendMessage,
-                suggestions: _suggestions,
-                hintText: 'Try "Mission to the airport"...',
+              Positioned(
+                top: topInset + 12,
+                left: 14,
+                right: 14,
+                child: _BayHopSearchBar(
+                  controller: _textController,
+                  isProcessing: state.isWaiting,
+                  onSend: sendMessage,
+                ),
               ),
             ],
           );
@@ -102,173 +148,575 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _TransitWorkspace extends StatelessWidget {
-  const _TransitWorkspace({
-    required this.isProcessing,
-    required this.latestSurfaceId,
+/// The frosted bottom sheet: a drag handle, quick chips, a live "nearby" row,
+/// and the result area that hosts the model-generated surface.
+class _BottomSheet extends StatelessWidget {
+  const _BottomSheet({
+    required this.scrollController,
+    required this.state,
+    required this.surfaceId,
     required this.session,
+    required this.onSuggestion,
   });
 
-  final bool isProcessing;
-  final String? latestSurfaceId;
+  final ScrollController scrollController;
+  final ConversationState state;
+  final String? surfaceId;
   final GenUiSession session;
+  final ValueChanged<String> onSuggestion;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final surfacePane = _SurfacePane(
-          isProcessing: isProcessing,
-          latestSurfaceId: latestSurfaceId,
-          session: session,
-        );
-
-        if (constraints.maxWidth < 900) return surfacePane;
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return BayHopFrostedSurface(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+      blur: 26,
+      opacity: 0.8,
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x21121C26),
+          blurRadius: 40,
+          offset: Offset(0, -8),
+        ),
+      ],
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(color: Color(0xD9FFFFFF)),
+          ),
+        ),
+        child: ListView(
+          controller: scrollController,
+          padding: EdgeInsets.zero,
           children: [
-            Expanded(flex: 3, child: surfacePane),
-            const VerticalDivider(width: 1),
-            SizedBox(
-              width: 420,
-              child: isProcessing
-                  ? const SizedBox.shrink()
-                  : A2uiSourceView(source: session.a2uiSource),
+            const _DragHandle(),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 2, 16, 0),
+              child: Row(
+                children: [
+                  BayHopChip(label: 'Nearby'),
+                  SizedBox(width: 8),
+                  BayHopChip(label: 'Home'),
+                  SizedBox(width: 8),
+                  BayHopChip(label: 'Work'),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              child: _NearbyRow(
+                onTap: () => onSuggestion('Next trains from Powell St'),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
+              child: _ResultArea(
+                state: state,
+                surfaceId: surfaceId,
+                session: session,
+                onSuggestion: onSuggestion,
+              ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
 
-class _SurfacePane extends StatelessWidget {
-  const _SurfacePane({
-    required this.isProcessing,
-    required this.latestSurfaceId,
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 11, bottom: 7),
+      child: Center(
+        child: Container(
+          width: 40,
+          height: 5,
+          decoration: BoxDecoration(
+            color: const Color(0xFF14181C).withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NearbyRow extends StatelessWidget {
+  const _NearbyRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          decoration: BoxDecoration(
+            color: const Color(0xFF76808A).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            children: [
+              const BayHopLiveDot(size: 9),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Powell St',
+                        style: BayHopText.body(
+                          size: 13,
+                          weight: FontWeight.w700,
+                        ),
+                      ),
+                      TextSpan(
+                        text: ' · Red → SFO',
+                        style: BayHopText.body(
+                          size: 13,
+                          color: BayHopColors.ink2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Text(
+                '4',
+                style: BayHopText.mono(
+                  size: 17,
+                  weight: FontWeight.w700,
+                  color: BayHopColors.ink,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Text(
+                'min',
+                style: BayHopText.body(
+                  size: 10,
+                  color: BayHopColors.faint,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResultArea extends StatelessWidget {
+  const _ResultArea({
+    required this.state,
+    required this.surfaceId,
     required this.session,
+    required this.onSuggestion,
   });
 
-  final bool isProcessing;
-  final String? latestSurfaceId;
+  final ConversationState state;
+  final String? surfaceId;
   final GenUiSession session;
+  final ValueChanged<String> onSuggestion;
 
   @override
   Widget build(BuildContext context) {
-    if (isProcessing) return const _TransitLoadingState();
+    if (state.isWaiting) return const _GeneratingResult();
 
-    final surfaceId = latestSurfaceId;
-    if (surfaceId == null) {
-      return const _TransitEmptyState();
-    }
+    final id = surfaceId;
+    if (id == null) return _IntroResult(onSuggestion: onSuggestion);
 
-    return ColoredBox(
-      color: Theme.of(context).colorScheme.surface,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Surface(surfaceContext: session.contextFor(surfaceId)),
-          ),
-        ),
-      ),
-    );
+    return Surface(surfaceContext: session.contextFor(id));
   }
 }
 
-class _TransitEmptyState extends StatelessWidget {
-  const _TransitEmptyState();
+/// Shown before any request: a friendly prompt plus tappable suggestions.
+class _IntroResult extends StatelessWidget {
+  const _IntroResult({required this.onSuggestion});
+
+  final ValueChanged<String> onSuggestion;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ColoredBox(
-      color: theme.colorScheme.surface,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(18),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const BayHopAiSpark(size: 30),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Where are you headed?',
+                    style: BayHopText.display(size: 19),
                   ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    color: theme.colorScheme.primary,
-                    size: 28,
+                  const SizedBox(height: 2),
+                  Text(
+                    'Ask for trips, live departures, or service status.',
+                    style: BayHopText.body(size: 13, color: BayHopColors.muted),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Where are you headed?',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Ask for BART, Muni, Caltrain, bus, ferry, or VTA trips, '
-                  'departures, and line status in plain language.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.45,
-                  ),
-                ),
-              ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'TRY ASKING',
+          style: BayHopText.body(
+            size: 10.5,
+            weight: FontWeight.w700,
+            color: BayHopColors.faint,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final suggestion in _suggestions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _SuggestionTile(
+              suggestion: suggestion,
+              onTap: () => onSuggestion(suggestion.query),
             ),
           ),
-        ),
-      ),
+      ],
     );
   }
 }
 
-class _TransitLoadingState extends StatelessWidget {
-  const _TransitLoadingState();
+/// The brief "composing" beat shown while the model streams its surface.
+class _GeneratingResult extends StatelessWidget {
+  const _GeneratingResult();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ColoredBox(
-      color: theme.colorScheme.surface,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Row(
-              children: [
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Reading the request and assembling the screen...',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const BayHopAiSpark(),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Generating result…',
+                    style: BayHopText.body(size: 15, weight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    'Composing the best view across BART & Muni',
+                    style: BayHopText.body(
+                      size: 12,
+                      color: const Color(0xFF8A929A),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: bayHopCardDecoration(),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SkeletonRow(widthFactor: 0.34, height: 13),
+              SizedBox(height: 14),
+              _SkeletonRow(widthFactor: 0.6, height: 42, radius: 11),
+              SizedBox(height: 20),
+              _SkeletonRow(widthFactor: 1, height: 9, radius: 5),
+              SizedBox(height: 9),
+              _SkeletonRow(widthFactor: 0.78, height: 9, radius: 5),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow({
+    required this.widthFactor,
+    required this.height,
+    this.radius = 7,
+  });
+
+  final double widthFactor;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: widthFactor,
+        child: BayHopSkeletonBar(
+          width: double.infinity,
+          height: height,
+          radius: radius,
+        ),
+      ),
+    );
+  }
+}
+
+/// The floating frosted search bar; tapping it reveals "TRY ASKING".
+class _BayHopSearchBar extends StatefulWidget {
+  const _BayHopSearchBar({
+    required this.controller,
+    required this.isProcessing,
+    required this.onSend,
+  });
+
+  final TextEditingController controller;
+  final bool isProcessing;
+  final ValueChanged<String> onSend;
+
+  @override
+  State<_BayHopSearchBar> createState() => _BayHopSearchBarState();
+}
+
+class _BayHopSearchBarState extends State<_BayHopSearchBar> {
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focus
+      ..removeListener(_onFocusChange)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() => setState(() {});
+
+  void _pick(String query) {
+    _focus.unfocus();
+    widget.onSend(query);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BayHopFrostedSurface(
+          borderRadius: const BorderRadius.all(Radius.circular(999)),
+          blur: 18,
+          opacity: 0.64,
+          borderOpacity: 0.75,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x29121C26),
+              blurRadius: 20,
+              offset: Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Color(0x1A121C26),
+              blurRadius: 3,
+              offset: Offset(0, 1),
+            ),
+          ],
+          child: SizedBox(
+            height: 54,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: Color(0xFF4F585F),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focus,
+                      enabled: !widget.isProcessing,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _pick,
+                      style: BayHopText.body(size: 16),
+                      decoration: InputDecoration.collapsed(
+                        hintText: 'Search BART, Muni, Caltrain…',
+                        hintStyle: BayHopText.body(
+                          size: 16,
+                          color: BayHopColors.muted,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE1E8ED),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      size: 22,
+                      color: Color(0xFF9BA7AF),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_focus.hasFocus) ...[
+          const SizedBox(height: 10),
+          _SearchSuggestions(onPick: _pick),
+        ],
+      ],
+    );
+  }
+}
+
+class _SearchSuggestions extends StatelessWidget {
+  const _SearchSuggestions({required this.onPick});
+
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return BayHopFrostedSurface(
+      opacity: 0.82,
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x33121C26),
+          blurRadius: 36,
+          offset: Offset(0, 14),
+        ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 9, 12, 6),
+              child: Text(
+                'TRY ASKING',
+                style: BayHopText.body(
+                  size: 10.5,
+                  weight: FontWeight.w700,
+                  color: BayHopColors.faint,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            for (final suggestion in _suggestions)
+              _SuggestionTile(
+                suggestion: suggestion,
+                onTap: () => onPick(suggestion.query),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionTile extends StatelessWidget {
+  const _SuggestionTile({required this.suggestion, required this.onTap});
+
+  final _Suggestion suggestion;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(11),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: suggestion.tint,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  suggestion.icon,
+                  size: 18,
+                  color: suggestion.iconColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      suggestion.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: BayHopText.body(
+                        size: 14.5,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      suggestion.subtitle,
+                      style: BayHopText.body(
+                        size: 12,
+                        color: BayHopColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class _Suggestion {
+  const _Suggestion({
+    required this.title,
+    required this.subtitle,
+    required this.query,
+    required this.icon,
+    required this.tint,
+    required this.iconColor,
+  });
+
+  final String title;
+  final String subtitle;
+  final String query;
+  final IconData icon;
+  final Color tint;
+  final Color iconColor;
 }
