@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:genui_template/conversation.dart';
 import 'package:genui_template/explore/explore_catalog.dart';
+import 'package:genui_template/explore/explore_handoff_controller.dart';
 import 'package:genui_template/explore/explore_prompt.dart';
 import 'package:genui_template/explore/explore_widgets.dart';
 import 'package:genui_template/explore/itinerary.dart';
@@ -23,10 +24,12 @@ const List<String> _exploreSuggestions = [
 class ExplorePage extends StatefulWidget {
   const ExplorePage({
     required this.locationListenable,
+    this.handoffController,
     super.key,
   });
 
   final ValueListenable<LocationSnapshot> locationListenable;
+  final ExploreHandoffController? handoffController;
 
   @override
   State<ExplorePage> createState() => _ExplorePageState();
@@ -38,6 +41,7 @@ class _ExplorePageState extends State<ExplorePage> {
   late final ActionDelegate _actionDelegate;
   final _textController = TextEditingController();
   StreamSubscription<ConversationEvent>? _eventsSub;
+  int? _lastHandoffId;
 
   @override
   void initState() {
@@ -57,11 +61,24 @@ class _ExplorePageState extends State<ExplorePage> {
         );
       }
     });
+
+    widget.handoffController?.addListener(_handleExploreHandoff);
+    _handleExploreHandoff();
+  }
+
+  @override
+  void didUpdateWidget(covariant ExplorePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.handoffController == widget.handoffController) return;
+    oldWidget.handoffController?.removeListener(_handleExploreHandoff);
+    widget.handoffController?.addListener(_handleExploreHandoff);
+    _handleExploreHandoff();
   }
 
   @override
   void dispose() {
     unawaited(_eventsSub?.cancel());
+    widget.handoffController?.removeListener(_handleExploreHandoff);
     _textController.dispose();
     _session.dispose();
     _itinerary.dispose();
@@ -87,6 +104,16 @@ class _ExplorePageState extends State<ExplorePage> {
     _session.sendMessage(request);
     _textController.clear();
     FocusScope.of(context).unfocus();
+  }
+
+  void _handleExploreHandoff() {
+    final handoff = widget.handoffController?.value;
+    if (handoff == null || handoff.id == _lastHandoffId) return;
+    _lastHandoffId = handoff.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lastHandoffId != handoff.id) return;
+      _sendMessage(handoff.query);
+    });
   }
 
   @override

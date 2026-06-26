@@ -7,6 +7,8 @@ import 'package:genui_template/location/location.dart';
 import 'package:genui_template/model/inception_model_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
+import 'package:genui_template/transit/transit_route_geometry.dart';
+import 'package:genui_template/transit/transit_widgets.dart';
 
 const List<_Suggestion> _suggestions = [
   _Suggestion(
@@ -38,10 +40,12 @@ const List<_Suggestion> _suggestions = [
 class HomePage extends StatefulWidget {
   const HomePage({
     this.locationController,
+    this.onOpenExplore,
     super.key,
   });
 
   final UserLocationController? locationController;
+  final ValueChanged<String>? onOpenExplore;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -51,8 +55,10 @@ class _HomePageState extends State<HomePage> {
   late final GenUiSession _session;
   late final UserLocationController _locationController;
   late final bool _ownsLocationController;
+  late final ActionDelegate _actionDelegate;
   final _textController = TextEditingController();
   final _sheetController = DraggableScrollableController();
+  final _routeOverlay = ValueNotifier<MapRouteOverlay?>(null);
   StreamSubscription<ConversationEvent>? _eventsSub;
 
   static const double _minSize = 0.16;
@@ -66,6 +72,9 @@ class _HomePageState extends State<HomePage> {
     _locationController = widget.locationController ?? UserLocationController();
     _ownsLocationController = widget.locationController == null;
     if (_ownsLocationController) unawaited(_locationController.refresh());
+    _actionDelegate = _TransitActionDelegate(
+      onOpenExplore: widget.onOpenExplore,
+    );
     _session = GenUiSession(
       modelClientBuilder: InceptionModelClient.new,
       contextProvider: _locationContextForModel,
@@ -86,6 +95,7 @@ class _HomePageState extends State<HomePage> {
     if (_ownsLocationController) _locationController.dispose();
     _textController.dispose();
     _sheetController.dispose();
+    _routeOverlay.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -94,10 +104,18 @@ class _HomePageState extends State<HomePage> {
     final request = text.trim();
     if (request.isEmpty) return;
 
+    _routeOverlay.value = null;
     _session.sendMessage(request);
     _textController.clear();
     FocusScope.of(context).unfocus();
     _expandSheet();
+  }
+
+  void _handleJourneySelected(TransitJourney journey) {
+    _routeOverlay.value = buildTransitJourneyRouteOverlay(
+      journey,
+      currentLocation: _locationController.value.fix?.coordinate,
+    );
   }
 
   void _expandSheet() {
@@ -136,6 +154,7 @@ class _HomePageState extends State<HomePage> {
                 child: OsmMapBackground(
                   location: _locationController,
                   onRequestLocation: _locationController.refresh,
+                  routeOverlayListenable: _routeOverlay,
                 ),
               ),
               DraggableScrollableSheet(
@@ -152,6 +171,8 @@ class _HomePageState extends State<HomePage> {
                     surfaceId: surfaceId,
                     session: _session,
                     locationController: _locationController,
+                    actionDelegate: _actionDelegate,
+                    onJourneySelected: _handleJourneySelected,
                     onSuggestion: sendMessage,
                   );
                 },
@@ -183,6 +204,8 @@ class _BottomSheet extends StatelessWidget {
     required this.surfaceId,
     required this.session,
     required this.locationController,
+    required this.actionDelegate,
+    required this.onJourneySelected,
     required this.onSuggestion,
   });
 
@@ -191,6 +214,8 @@ class _BottomSheet extends StatelessWidget {
   final String? surfaceId;
   final GenUiSession session;
   final UserLocationController locationController;
+  final ActionDelegate actionDelegate;
+  final ValueChanged<TransitJourney> onJourneySelected;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -242,6 +267,8 @@ class _BottomSheet extends StatelessWidget {
                 state: state,
                 surfaceId: surfaceId,
                 session: session,
+                actionDelegate: actionDelegate,
+                onJourneySelected: onJourneySelected,
                 onSuggestion: onSuggestion,
               ),
             ),
@@ -435,12 +462,16 @@ class _ResultArea extends StatelessWidget {
     required this.state,
     required this.surfaceId,
     required this.session,
+    required this.actionDelegate,
+    required this.onJourneySelected,
     required this.onSuggestion,
   });
 
   final ConversationState state;
   final String? surfaceId;
   final GenUiSession session;
+  final ActionDelegate actionDelegate;
+  final ValueChanged<TransitJourney> onJourneySelected;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -450,7 +481,13 @@ class _ResultArea extends StatelessWidget {
     final id = surfaceId;
     if (id == null) return _IntroResult(onSuggestion: onSuggestion);
 
-    return Surface(surfaceContext: session.contextFor(id));
+    return TransitRouteSelectionScope(
+      onJourneySelected: onJourneySelected,
+      child: Surface(
+        surfaceContext: session.contextFor(id),
+        actionDelegate: actionDelegate,
+      ),
+    );
   }
 }
 
@@ -837,4 +874,34 @@ class _Suggestion {
   final IconData icon;
   final Color tint;
   final Color iconColor;
+}
+
+class _TransitActionDelegate implements ActionDelegate {
+  const _TransitActionDelegate({required this.onOpenExplore});
+
+  final ValueChanged<String>? onOpenExplore;
+
+  @override
+  bool handleEvent(
+    BuildContext context,
+    UiEvent event,
+    SurfaceContext genUiContext,
+    Widget Function(SurfaceDefinition, Catalog, String, DataContext)
+    buildWidget,
+  ) {
+    if (event is! UserActionEvent || event.name != 'open_explore') {
+      return false;
+    }
+
+    final query = _actionString(event.context['query']);
+    if (query == null) return false;
+    onOpenExplore?.call(query);
+    return true;
+  }
+
+  String? _actionString(Object? value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
+  }
 }

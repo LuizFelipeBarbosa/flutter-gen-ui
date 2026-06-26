@@ -19,5 +19,13 @@ void main() {
     expect(itemNames, isNot(contains('ExploreSummary')));
     expect(itemNames, isNot(contains('ExplorerOptionCard')));
     expect(itemNames, contains('TransitSummary'));
+    expect(itemNames, contains('TransitExploreBranch'));
+  });
+
+  test('explore catalog does not include transit handoff components', () {
+    final catalog = buildExploreCatalog();
+    final itemNames = catalog.items.map((item) => item.name);
+
+    expect(itemNames, isNot(contains('TransitExploreBranch')));
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:genui_template/explore/explore_handoff_controller.dart';
 import 'package:genui_template/explore/explore_page.dart';
 import 'package:genui_template/home_page.dart';
 import 'package:genui_template/location/location.dart';
@@ -16,6 +17,8 @@ class BayHopShellPage extends StatefulWidget {
 class _BayHopShellPageState extends State<BayHopShellPage> {
   late final UserLocationController _locationController =
       UserLocationController();
+  late final ExploreHandoffController _exploreHandoffController =
+      ExploreHandoffController();
   var _selectedIndex = 0;
 
   @override
@@ -26,8 +29,14 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
 
   @override
   void dispose() {
+    _exploreHandoffController.dispose();
     _locationController.dispose();
     super.dispose();
+  }
+
+  void _openExplore(String query) {
+    setState(() => _selectedIndex = 1);
+    _exploreHandoffController.open(query);
   }
 
   @override
@@ -36,8 +45,14 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          HomePage(locationController: _locationController),
-          ExplorePage(locationListenable: _locationController),
+          HomePage(
+            locationController: _locationController,
+            onOpenExplore: _openExplore,
+          ),
+          ExplorePage(
+            locationListenable: _locationController,
+            handoffController: _exploreHandoffController,
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(

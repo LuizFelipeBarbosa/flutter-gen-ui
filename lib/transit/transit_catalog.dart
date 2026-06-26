@@ -9,6 +9,7 @@ final List<CatalogItem> transitCatalogItems = [
   transitJourneyItem,
   transitDeparturesItem,
   transitLiveDeparturesItem,
+  transitExploreBranchItem,
   transitAlertItem,
   transitNoteItem,
 ];
@@ -207,6 +208,48 @@ final CatalogItem transitLiveDeparturesItem = CatalogItem(
   ],
 );
 
+final CatalogItem transitExploreBranchItem = CatalogItem(
+  name: 'TransitExploreBranch',
+  dataSchema: S.object(
+    description:
+        'A tappable Explore handoff tied to a route destination, transfer '
+        'station, or transit corridor.',
+    properties: {
+      'title': S.string(description: 'Short generated branch title.'),
+      'subtitle': S.string(description: 'One-line context for the branch.'),
+      'badge': S.string(description: 'Small category label.'),
+      'destination': S.string(
+        description: 'Destination, station, or corridor the branch references.',
+      ),
+      'query': S.string(
+        description: 'Plain-language Explore request to send after tapping.',
+      ),
+      'actionName': S.string(
+        description: 'Action name to dispatch.',
+        enumValues: ['open_explore'],
+      ),
+    },
+    required: ['title', 'query'],
+  ),
+  widgetBuilder: (context) {
+    return TransitExploreBranch.fromContext(context);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'TransitExploreBranch',
+        'title': 'Explore near SFO',
+        'subtitle': 'Food, coffee, and arrival-friendly ideas',
+        'badge': 'Explore',
+        'destination': 'SFO',
+        'query': 'Explore places near SFO after arriving by BART',
+        'actionName': 'open_explore',
+      },
+    ]),
+  ],
+);
+
 final CatalogItem transitAlertItem = CatalogItem(
   name: 'TransitAlert',
   dataSchema: S.object(
@@ -276,8 +319,8 @@ final Schema _legSchema = S.object(
       description:
           'Exact line id for ride legs. Omit for change and walk legs.',
     ),
-    'from': S.string(description: 'Ride origin station.'),
-    'to': S.string(description: 'Ride or walk destination.'),
+    'from': S.string(description: 'Ride origin station, stop, or anchor.'),
+    'to': S.string(description: 'Ride or walk destination station or anchor.'),
     'station': S.string(description: 'Transfer station for change legs.'),
     'mins': S.integer(description: 'Leg duration in minutes.'),
     'stops': S.integer(description: 'Ride stop count.'),
@@ -304,6 +347,10 @@ const String transitCatalogRules = '''
 Prefer the custom Bay Area transit components over generic cards or text:
 - Use TransitSummary once at the top of each answer.
 - Use TransitJourney for trip options.
+- Use TransitExploreBranch after trip routes when there is useful destination,
+  transfer-station, or route-corridor exploration context.
+- Use TransitJourney ride legs with line "regional-bus" for bus connections.
+  Walk legs are only true foot paths, not bus placeholders.
 - Use TransitLiveDepartures for live BART departure requests when you know the BART abbreviation.
 - Use TransitLiveDepartures with source "511" for live non-BART departures only when you know a 511 agency plus stop code, or an exact agency and stop name.
 - Use TransitDepartures for planned estimates only when a live source cannot be resolved. Never fabricate live rows.
