@@ -45,6 +45,7 @@ Future<String?> _loadGoogleMapsJavaScript(String apiKey) async {
       '/maps/api/js',
       {
         'key': apiKey,
+        'loading': 'async',
       },
     ).toString()
     ..setAttribute('data-bayhop-google-maps-sdk', 'true')
