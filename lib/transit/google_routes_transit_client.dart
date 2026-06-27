@@ -50,7 +50,6 @@ class GoogleRoutesTransitClient implements TransitRouteClient {
       'routes.duration,'
       'routes.travelAdvisory.transitFare,'
       'routes.legs.steps.travelMode,'
-      'routes.legs.steps.duration,'
       'routes.legs.steps.staticDuration,'
       'routes.legs.steps.navigationInstruction,'
       'routes.legs.steps.transitDetails';

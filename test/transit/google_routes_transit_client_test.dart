@@ -9,6 +9,21 @@ import 'package:http/testing.dart';
 
 void main() {
   group('GoogleRoutesTransitClient', () {
+    test('field mask only requests valid Routes transit step fields', () {
+      expect(
+        GoogleRoutesTransitClient.defaultFieldMask,
+        isNot(contains('routes.legs.steps.duration')),
+      );
+      expect(
+        GoogleRoutesTransitClient.defaultFieldMask,
+        contains('routes.legs.steps.staticDuration'),
+      );
+      expect(
+        GoogleRoutesTransitClient.defaultFieldMask,
+        contains('routes.legs.steps.transitDetails'),
+      );
+    });
+
     test(
       'posts transit route requests and parses BART, fare, and walk',
       () async {
