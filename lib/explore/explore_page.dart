@@ -55,6 +55,7 @@ class _ExplorePageState extends State<ExplorePage> {
   int? _lastHandoffId;
   int _historyIndex = -1;
   bool _mobileItineraryExpanded = false;
+  String _latestRequest = '';
 
   @override
   void initState() {
@@ -134,6 +135,7 @@ class _ExplorePageState extends State<ExplorePage> {
     final request = text.trim();
     if (request.isEmpty) return;
     _truncateForwardHistory();
+    _latestRequest = request;
     _session.sendMessage(request);
     _textController.clear();
     FocusScope.of(context).unfocus();
@@ -159,6 +161,7 @@ class _ExplorePageState extends State<ExplorePage> {
 
     final liveContext = _session.contextFor(surfaceId);
     final snapshot = _ExploreSurfaceSnapshot(
+      request: _latestRequest,
       signature: signature,
       context: _ExploreSnapshotSurfaceContext(
         surfaceId: surfaceId,
@@ -235,6 +238,7 @@ class _ExplorePageState extends State<ExplorePage> {
               session: _session,
               actionDelegate: _actionDelegate,
               textController: _textController,
+              latestRequest: _latestRequest,
               onSend: _sendMessage,
               onBack: _goBack,
               canGoBack: _historyIndex > 0,
@@ -295,6 +299,7 @@ class _ExplorerSurface extends StatelessWidget {
     required this.session,
     required this.actionDelegate,
     required this.textController,
+    required this.latestRequest,
     required this.onSend,
     required this.onBack,
     required this.canGoBack,
@@ -306,6 +311,7 @@ class _ExplorerSurface extends StatelessWidget {
   final GenUiSession session;
   final ActionDelegate actionDelegate;
   final TextEditingController textController;
+  final String latestRequest;
   final ValueChanged<String> onSend;
   final VoidCallback onBack;
   final bool canGoBack;
@@ -334,21 +340,30 @@ class _ExplorerSurface extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 680),
-                    child: _GeneratedExploreContent(
-                      state: state,
-                      surfaceId: surfaceId,
-                      snapshot: snapshot,
-                      session: session,
-                      actionDelegate: actionDelegate,
-                      onSend: onSend,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: _exploreContentMaxWidth(
+                            constraints.maxWidth,
+                          ),
+                        ),
+                        child: _GeneratedExploreContent(
+                          state: state,
+                          surfaceId: surfaceId,
+                          snapshot: snapshot,
+                          session: session,
+                          actionDelegate: actionDelegate,
+                          latestRequest: latestRequest,
+                          onSend: onSend,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -358,6 +373,12 @@ class _ExplorerSurface extends StatelessWidget {
   }
 }
 
+double _exploreContentMaxWidth(double availableWidth) {
+  if (availableWidth < 760) return 680;
+  if (availableWidth < 1100) return availableWidth - 32;
+  return 1120;
+}
+
 class _GeneratedExploreContent extends StatelessWidget {
   const _GeneratedExploreContent({
     required this.state,
@@ -365,6 +386,7 @@ class _GeneratedExploreContent extends StatelessWidget {
     required this.snapshot,
     required this.session,
     required this.actionDelegate,
+    required this.latestRequest,
     required this.onSend,
   });
 
@@ -373,6 +395,7 @@ class _GeneratedExploreContent extends StatelessWidget {
   final _ExploreSurfaceSnapshot? snapshot;
   final GenUiSession session;
   final ActionDelegate actionDelegate;
+  final String latestRequest;
   final ValueChanged<String> onSend;
 
   @override
@@ -382,19 +405,143 @@ class _GeneratedExploreContent extends StatelessWidget {
     final id = surfaceId;
     final selectedSnapshot = snapshot;
     if (selectedSnapshot != null) {
-      return Surface(
-        surfaceContext: selectedSnapshot.context,
-        actionDelegate: actionDelegate,
+      return _ExploreResultWithRemixes(
+        request: selectedSnapshot.request,
+        onSend: onSend,
+        child: Surface(
+          surfaceContext: selectedSnapshot.context,
+          actionDelegate: actionDelegate,
+        ),
       );
     }
 
     if (id == null) return _ExploreIntro(onSend: onSend);
 
-    return Surface(
-      surfaceContext: session.contextFor(id),
-      actionDelegate: actionDelegate,
+    return _ExploreResultWithRemixes(
+      request: latestRequest,
+      onSend: onSend,
+      child: Surface(
+        surfaceContext: session.contextFor(id),
+        actionDelegate: actionDelegate,
+      ),
     );
   }
+}
+
+class _ExploreResultWithRemixes extends StatelessWidget {
+  const _ExploreResultWithRemixes({
+    required this.child,
+    required this.request,
+    required this.onSend,
+  });
+
+  final Widget child;
+  final String request;
+  final ValueChanged<String> onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        child,
+        const SizedBox(height: 10),
+        _ExploreRemixStrip(request: request, onSend: onSend),
+      ],
+    );
+  }
+}
+
+const List<_ExploreRemixItem> _exploreRemixItems = [
+  _ExploreRemixItem(
+    label: 'More scenic',
+    instruction:
+        'Make it more scenic with views, waterfronts, overlooks, parks, or '
+        'memorable visual moments.',
+    icon: Icons.landscape_rounded,
+  ),
+  _ExploreRemixItem(
+    label: 'Cheaper',
+    instruction:
+        'Make it cheaper with free or low-cost stops and fewer paid tickets.',
+    icon: Icons.savings_rounded,
+  ),
+  _ExploreRemixItem(
+    label: 'Foodier',
+    instruction:
+        'Make it foodier with snacks, cafes, bakeries, markets, or casual '
+        'meal stops.',
+    icon: Icons.restaurant_rounded,
+  ),
+  _ExploreRemixItem(
+    label: 'Less walking',
+    instruction:
+        'Reduce the walking and favor short hops, close clusters, and easy '
+        'transit connections.',
+    icon: Icons.directions_walk_rounded,
+  ),
+  _ExploreRemixItem(
+    label: 'Surprise twist',
+    instruction:
+        'Add one playful surprise twist while keeping the plan practical.',
+    icon: Icons.auto_awesome_rounded,
+  ),
+];
+
+class _ExploreRemixItem {
+  const _ExploreRemixItem({
+    required this.label,
+    required this.instruction,
+    required this.icon,
+  });
+
+  final String label;
+  final String instruction;
+  final IconData icon;
+}
+
+class _ExploreRemixStrip extends StatelessWidget {
+  const _ExploreRemixStrip({
+    required this.request,
+    required this.onSend,
+  });
+
+  final String request;
+  final ValueChanged<String> onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _exploreRemixItems.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final item = _exploreRemixItems[index];
+          return ActionChip(
+            label: Text(item.label),
+            avatar: Icon(item.icon, size: 16),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => onSend(_remixPrompt(item, request)),
+          );
+        },
+      ),
+    );
+  }
+}
+
+String _remixPrompt(_ExploreRemixItem item, String request) {
+  final subject = _remixSubject(request);
+  return 'Remix $subject. ${item.instruction} Keep it Bay Area and '
+      'transit-friendly, preserve what still works from the current result, '
+      'and render a fresh Explore answer.';
+}
+
+String _remixSubject(String request) {
+  final normalized = request.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (normalized.isEmpty) return 'the current Explore result';
+  return 'the current Explore result/request "$normalized"';
 }
 
 const List<_ExploreNavItem> _exploreNavItems = [
@@ -1036,10 +1183,12 @@ class _ItineraryStopTile extends StatelessWidget {
 
 class _ExploreSurfaceSnapshot {
   _ExploreSurfaceSnapshot({
+    required this.request,
     required this.signature,
     required this.context,
   });
 
+  final String request;
   final String signature;
   final _ExploreSnapshotSurfaceContext context;
 

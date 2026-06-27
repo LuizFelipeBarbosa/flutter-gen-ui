@@ -69,6 +69,45 @@ void main() {
     );
   });
 
+  testWidgets('remix chips send current result prompts', (tester) async {
+    await _setSurfaceSize(tester, const Size(1000, 800));
+    final itinerary = ItineraryController();
+    final location = _testLocation();
+    late final _TestModelClient modelClient;
+
+    addTearDown(itinerary.dispose);
+    addTearDown(location.dispose);
+
+    await _pumpExplorePage(
+      tester,
+      itinerary: itinerary,
+      location: location,
+      modelClientBuilder: ({required systemPrompt}) {
+        return modelClient = _TestModelClient(
+          systemPrompt: systemPrompt,
+          responses: [_summarySurface('Nearby branch')],
+        );
+      },
+    );
+
+    await tester.tap(find.text('Nearby'));
+    await _pumpUntil(
+      tester,
+      () => find.text('More scenic').evaluate().isNotEmpty,
+    );
+
+    await tester.tap(find.text('More scenic'));
+    await _pumpUntil(tester, () => modelClient.history.length >= 3);
+
+    final prompt = modelClient.history.last.text;
+    expect(prompt, contains('Remix the current Explore result/request'));
+    expect(
+      prompt,
+      contains('Find nearby mini adventures and grounded places.'),
+    );
+    expect(prompt, contains('Make it more scenic'));
+  });
+
   testWidgets('back renders an earlier generated surface', (tester) async {
     await _setSurfaceSize(tester, const Size(1000, 800));
     final itinerary = ItineraryController();

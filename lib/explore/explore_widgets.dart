@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
+import 'package:genui_template/explore/explore_image_resolver.dart';
 import 'package:genui_template/location/location_point.dart';
 import 'package:genui_template/location/map_place_overlay.dart';
 import 'package:genui_template/places/places.dart';
@@ -277,31 +278,72 @@ class ExploreImageMosaic extends StatelessWidget {
           ],
           LayoutBuilder(
             builder: (context, constraints) {
-              final spacing = tiles.length == 2 ? 10.0 : 8.0;
-              final width = constraints.maxWidth;
-              final tileWidth = tiles.length == 2
-                  ? (width - spacing) / 2
-                  : (width - spacing) / 2;
-
-              return Wrap(
-                spacing: spacing,
-                runSpacing: spacing,
-                children: [
-                  for (var index = 0; index < tiles.length; index++)
-                    SizedBox(
-                      width: tileWidth.clamp(132.0, width),
-                      child: _MosaicTile(
-                        data: tiles[index],
-                        tall: index == 0 && tiles.length > 2,
-                        onAction: onAction,
-                      ),
-                    ),
-                ],
+              return _ExploreImageBentoLayout(
+                tiles: tiles,
+                maxWidth: constraints.maxWidth,
+                onAction: onAction,
               );
             },
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ExploreImageBentoLayout extends StatelessWidget {
+  const _ExploreImageBentoLayout({
+    required this.tiles,
+    required this.maxWidth,
+    required this.onAction,
+  });
+
+  final List<ExploreMosaicImage> tiles;
+  final double maxWidth;
+  final void Function(String actionName, JsonMap context) onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = maxWidth.isFinite ? maxWidth : 320.0;
+    if (tiles.length == 1 || width < 380) return _stackedLayout();
+
+    final slots = _bentoSlotsFor(tiles.length);
+    return AspectRatio(
+      aspectRatio: _imageMosaicAspectRatio(tiles.length),
+      child: _BentoStack(
+        children: [
+          for (var index = 0; index < tiles.length; index++)
+            _BentoStackItem(
+              slot: slots[index],
+              child: _MosaicTile(
+                data: tiles[index],
+                density: _mosaicTileDensity(index, tiles.length),
+                onAction: onAction,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _stackedLayout() {
+    return Column(
+      children: [
+        for (var index = 0; index < tiles.length; index++)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: index == tiles.length - 1 ? 0 : 8,
+            ),
+            child: _MosaicTile(
+              data: tiles[index],
+              aspectRatio: index == 0 && tiles.length > 2 ? 1.28 : 1.48,
+              density: index == 0
+                  ? _MosaicTileDensity.featured
+                  : _MosaicTileDensity.regular,
+              onAction: onAction,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -344,16 +386,20 @@ class ExploreMosaicImage {
   }
 }
 
+enum _MosaicTileDensity { featured, regular, compact }
+
 class _MosaicTile extends StatelessWidget {
   const _MosaicTile({
     required this.data,
-    required this.tall,
     required this.onAction,
+    this.aspectRatio,
+    this.density = _MosaicTileDensity.regular,
   });
 
   final ExploreMosaicImage data;
-  final bool tall;
   final void Function(String actionName, JsonMap context) onAction;
+  final double? aspectRatio;
+  final _MosaicTileDensity density;
 
   @override
   Widget build(BuildContext context) {
@@ -362,61 +408,47 @@ class _MosaicTile extends StatelessWidget {
       data.badge,
       data.query,
     ]);
-    final child = ClipRRect(
+    final tile = ClipRRect(
       borderRadius: BorderRadius.circular(14),
-      child: AspectRatio(
-        aspectRatio: tall ? 0.95 : 1.22,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            _ExploreNetworkImage(
-              imageUrl: data.imageUrl,
-              fallbackImageUrl: fallbackImageUrl,
-              semanticLabel: data.imageAltText,
-              fallbackIcon: Icons.image_rounded,
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.62),
-                  ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              _ExploreNetworkImage(
+                imageUrl: data.imageUrl,
+                fallbackImageUrl: fallbackImageUrl,
+                semanticLabel: data.imageAltText,
+                fallbackIcon: Icons.image_rounded,
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.04),
+                      Colors.black.withValues(alpha: 0.68),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Positioned(
-              left: 10,
-              right: 10,
-              bottom: 9,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (data.badge != null) BayHopChip(label: data.badge!),
-                  if (data.title != null) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      data.title!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: BayHopText.body(
-                        size: 13,
-                        color: Colors.white,
-                        weight: FontWeight.w800,
-                        height: 1.1,
-                      ),
-                    ),
-                  ],
-                ],
+              Positioned.fill(
+                child: _MosaicTileCaption(
+                  data: data,
+                  density: density,
+                  maxWidth: constraints.maxWidth,
+                  maxHeight: constraints.maxHeight,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
+    final child = aspectRatio == null
+        ? tile
+        : AspectRatio(aspectRatio: aspectRatio!, child: tile);
 
     if (data.query == null) return child;
 
@@ -429,6 +461,188 @@ class _MosaicTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MosaicTileCaption extends StatelessWidget {
+  const _MosaicTileCaption({
+    required this.data,
+    required this.density,
+    required this.maxWidth,
+    required this.maxHeight,
+  });
+
+  final ExploreMosaicImage data;
+  final _MosaicTileDensity density;
+  final double maxWidth;
+  final double maxHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompact =
+        density == _MosaicTileDensity.compact ||
+        maxWidth < 150 ||
+        maxHeight < 126;
+    final title = data.title ?? (isCompact ? data.badge : null);
+    final showBadge =
+        data.badge != null && !isCompact && maxWidth >= 150 && maxHeight >= 132;
+    final titleSize = switch (density) {
+      _MosaicTileDensity.featured => 15.5,
+      _MosaicTileDensity.regular => 13.5,
+      _MosaicTileDensity.compact => 12.5,
+    };
+    final titleLines =
+        density == _MosaicTileDensity.featured && maxHeight >= 168 ? 2 : 1;
+    final inset = isCompact ? 8.0 : 10.0;
+
+    return Padding(
+      padding: EdgeInsets.all(inset),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showBadge)
+            _OverlayChip(
+              label: data.badge!,
+              maxWidth: maxWidth - inset * 2,
+            ),
+          if (title != null) ...[
+            if (showBadge) const SizedBox(height: 5),
+            Text(
+              title,
+              maxLines: titleLines,
+              overflow: TextOverflow.ellipsis,
+              style: BayHopText.body(
+                size: titleSize,
+                color: Colors.white,
+                weight: FontWeight.w800,
+                height: 1.08,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BentoStack extends StatelessWidget {
+  const _BentoStack({required this.children});
+
+  final List<_BentoStackItem> children;
+
+  @override
+  Widget build(BuildContext context) {
+    const spacing = 8.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            for (final item in children)
+              Positioned(
+                left: item.slot.left * constraints.maxWidth,
+                top: item.slot.top * constraints.maxHeight,
+                width: item.slot.width * constraints.maxWidth,
+                height: item.slot.height * constraints.maxHeight,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: item.slot.left == 0 ? 0 : spacing / 2,
+                    top: item.slot.top == 0 ? 0 : spacing / 2,
+                    right: item.slot.right >= 0.999 ? 0 : spacing / 2,
+                    bottom: item.slot.bottom >= 0.999 ? 0 : spacing / 2,
+                  ),
+                  child: item.child,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _BentoStackItem {
+  const _BentoStackItem({
+    required this.slot,
+    required this.child,
+  });
+
+  final _BentoSlot slot;
+  final Widget child;
+}
+
+class _BentoSlot {
+  const _BentoSlot({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+  });
+
+  final double left;
+  final double top;
+  final double width;
+  final double height;
+
+  double get right => left + width;
+  double get bottom => top + height;
+}
+
+List<_BentoSlot> _bentoSlotsFor(int count) {
+  return switch (count) {
+    1 => const [
+      _BentoSlot(left: 0, top: 0, width: 1, height: 1),
+    ],
+    2 => const [
+      _BentoSlot(left: 0, top: 0, width: 0.58, height: 1),
+      _BentoSlot(left: 0.58, top: 0, width: 0.42, height: 1),
+    ],
+    3 => const [
+      _BentoSlot(left: 0, top: 0, width: 0.58, height: 1),
+      _BentoSlot(left: 0.58, top: 0, width: 0.42, height: 0.5),
+      _BentoSlot(left: 0.58, top: 0.5, width: 0.42, height: 0.5),
+    ],
+    4 => const [
+      _BentoSlot(left: 0, top: 0, width: 0.58, height: 0.64),
+      _BentoSlot(left: 0.58, top: 0, width: 0.42, height: 0.64),
+      _BentoSlot(left: 0, top: 0.64, width: 0.34, height: 0.36),
+      _BentoSlot(left: 0.34, top: 0.64, width: 0.66, height: 0.36),
+    ],
+    _ => const [
+      _BentoSlot(left: 0, top: 0, width: 0.5, height: 1),
+      _BentoSlot(left: 0.5, top: 0, width: 0.25, height: 0.5),
+      _BentoSlot(left: 0.75, top: 0, width: 0.25, height: 0.5),
+      _BentoSlot(left: 0.5, top: 0.5, width: 0.25, height: 0.5),
+      _BentoSlot(left: 0.75, top: 0.5, width: 0.25, height: 0.5),
+    ],
+  };
+}
+
+double _imageMosaicAspectRatio(int count) {
+  return switch (count) {
+    2 => 1.95,
+    3 => 1.55,
+    4 => 1.42,
+    5 => 1.55,
+    _ => 1.48,
+  };
+}
+
+double _placeMosaicAspectRatio(int count) {
+  return switch (count) {
+    1 => 1.6,
+    2 => 2.05,
+    3 => 1.6,
+    4 => 1.45,
+    5 => 1.55,
+    _ => 1.55,
+  };
+}
+
+_MosaicTileDensity _mosaicTileDensity(int index, int count) {
+  if (index == 0) return _MosaicTileDensity.featured;
+  if (count == 4 && index >= 2) return _MosaicTileDensity.compact;
+  if (count >= 5 && index > 0) return _MosaicTileDensity.compact;
+  return _MosaicTileDensity.regular;
 }
 
 class ExploreAdventurePlan extends StatefulWidget {
@@ -1491,19 +1705,13 @@ class _PlaceResultsView extends StatelessWidget {
       ),
       ExplorePlaceSearchLayout.mosaic => LayoutBuilder(
         builder: (context, constraints) {
-          const spacing = 8.0;
-          final width = ((constraints.maxWidth - spacing) / 2).clamp(
-            148.0,
-            constraints.maxWidth,
-          );
-
-          return Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            children: [
-              for (final result in results)
-                SizedBox(width: width, child: _cardFor(result, compact: true)),
-            ],
+          return _PlaceResultsMosaic(
+            results: results,
+            maxWidth: constraints.maxWidth,
+            distanceLabelFor: distanceLabelFor,
+            photoUriFor: photoUriFor,
+            onExplore: onExplore,
+            onAdd: onAdd,
           );
         },
       ),
@@ -1527,6 +1735,366 @@ class _PlaceResultsView extends StatelessWidget {
       photoUri: photoUriFor(result),
       onExplore: () => onExplore(result),
       onAdd: () => onAdd(result),
+    );
+  }
+}
+
+class _PlaceResultsMosaic extends StatelessWidget {
+  const _PlaceResultsMosaic({
+    required this.results,
+    required this.maxWidth,
+    required this.distanceLabelFor,
+    required this.photoUriFor,
+    required this.onExplore,
+    required this.onAdd,
+  });
+
+  final List<PlaceResult> results;
+  final double maxWidth;
+  final String? Function(PlaceResult result) distanceLabelFor;
+  final Uri? Function(PlaceResult result) photoUriFor;
+  final ValueChanged<PlaceResult> onExplore;
+  final ValueChanged<PlaceResult> onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = maxWidth.isFinite ? maxWidth : 320.0;
+    if (width < 380) return _stackedLayout();
+
+    final groups = <List<PlaceResult>>[];
+    for (var start = 0; start < results.length; start += 5) {
+      final end = start + 5 > results.length ? results.length : start + 5;
+      groups.add(results.sublist(start, end));
+    }
+
+    return Column(
+      children: [
+        for (var index = 0; index < groups.length; index++)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: index == groups.length - 1 ? 0 : 8,
+            ),
+            child: _PlaceResultsBentoGroup(
+              results: groups[index],
+              distanceLabelFor: distanceLabelFor,
+              photoUriFor: photoUriFor,
+              onExplore: onExplore,
+              onAdd: onAdd,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _stackedLayout() {
+    return Column(
+      children: [
+        for (var index = 0; index < results.length; index++)
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: index == results.length - 1 ? 0 : 8,
+            ),
+            child: _PlaceResultMosaicCard(
+              place: results[index],
+              distanceLabel: distanceLabelFor(results[index]),
+              photoUri: photoUriFor(results[index]),
+              aspectRatio: index == 0 ? 1.35 : 1.55,
+              density: index == 0
+                  ? _MosaicTileDensity.featured
+                  : _MosaicTileDensity.regular,
+              onExplore: () => onExplore(results[index]),
+              onAdd: () => onAdd(results[index]),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PlaceResultsBentoGroup extends StatelessWidget {
+  const _PlaceResultsBentoGroup({
+    required this.results,
+    required this.distanceLabelFor,
+    required this.photoUriFor,
+    required this.onExplore,
+    required this.onAdd,
+  });
+
+  final List<PlaceResult> results;
+  final String? Function(PlaceResult result) distanceLabelFor;
+  final Uri? Function(PlaceResult result) photoUriFor;
+  final ValueChanged<PlaceResult> onExplore;
+  final ValueChanged<PlaceResult> onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final slots = _bentoSlotsFor(results.length);
+    return AspectRatio(
+      aspectRatio: _placeMosaicAspectRatio(results.length),
+      child: _BentoStack(
+        children: [
+          for (var index = 0; index < results.length; index++)
+            _BentoStackItem(
+              slot: slots[index],
+              child: _PlaceResultMosaicCard(
+                place: results[index],
+                distanceLabel: distanceLabelFor(results[index]),
+                photoUri: photoUriFor(results[index]),
+                density: _mosaicTileDensity(index, results.length),
+                onExplore: () => onExplore(results[index]),
+                onAdd: () => onAdd(results[index]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaceResultMosaicCard extends StatelessWidget {
+  const _PlaceResultMosaicCard({
+    required this.place,
+    required this.onExplore,
+    required this.onAdd,
+    this.distanceLabel,
+    this.photoUri,
+    this.aspectRatio,
+    this.density = _MosaicTileDensity.regular,
+  });
+
+  final PlaceResult place;
+  final VoidCallback onExplore;
+  final VoidCallback onAdd;
+  final String? distanceLabel;
+  final Uri? photoUri;
+  final double? aspectRatio;
+  final _MosaicTileDensity density;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = place.toCardData();
+    final labels = [
+      ?distanceLabel,
+      ...card.metadata,
+      ...card.tags,
+    ];
+    final fallbackImageUrl = _fallbackImageUrlFor([
+      card.title,
+      card.subtitle,
+      ...card.metadata,
+      ...card.tags,
+    ]);
+    final tile = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onExplore,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact =
+                  density == _MosaicTileDensity.compact ||
+                  constraints.maxWidth < 158 ||
+                  constraints.maxHeight < 140;
+              final visibleLabels = labels.take(switch (density) {
+                _MosaicTileDensity.featured => 3,
+                _MosaicTileDensity.regular => 2,
+                _MosaicTileDensity.compact => 1,
+              }).toList();
+              final showLabels =
+                  visibleLabels.isNotEmpty &&
+                  constraints.maxWidth >= 130 &&
+                  constraints.maxHeight >= (isCompact ? 132 : 158);
+              final showSubtitle =
+                  !isCompact &&
+                  card.subtitle != null &&
+                  constraints.maxHeight >= 170;
+              final titleSize = switch (density) {
+                _MosaicTileDensity.featured => 16.5,
+                _MosaicTileDensity.regular => 14.0,
+                _MosaicTileDensity.compact => 12.5,
+              };
+              final titleLines =
+                  density == _MosaicTileDensity.featured &&
+                      constraints.maxHeight >= 190
+                  ? 2
+                  : 1;
+              final inset = isCompact ? 8.0 : 10.0;
+              final chipMaxWidth = constraints.maxWidth - inset * 2;
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  _ExploreNetworkImage(
+                    imageUrl: photoUri?.toString(),
+                    fallbackImageUrl: fallbackImageUrl,
+                    semanticLabel: card.title,
+                    fallbackIcon: Icons.place_rounded,
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.08),
+                          Colors.black.withValues(alpha: 0.18),
+                          Colors.black.withValues(alpha: 0.76),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (photoUri != null &&
+                      card.photoAttributionLabel != null &&
+                      constraints.maxWidth >= 170 &&
+                      constraints.maxHeight >= 150)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 50,
+                      child: _PhotoAttributionPill(
+                        label: card.photoAttributionLabel!,
+                      ),
+                    ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton.filledTonal(
+                      tooltip: 'Add to itinerary',
+                      onPressed: onAdd,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: 0.88),
+                        foregroundColor: BayHopColors.ink,
+                        fixedSize: const Size(38, 38),
+                        minimumSize: const Size(38, 38),
+                        padding: EdgeInsets.zero,
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 21),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Padding(
+                      padding: EdgeInsets.all(inset),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            card.title,
+                            maxLines: titleLines,
+                            overflow: TextOverflow.ellipsis,
+                            style: BayHopText.body(
+                              size: titleSize,
+                              color: Colors.white,
+                              weight: FontWeight.w900,
+                              height: 1.08,
+                            ),
+                          ),
+                          if (showSubtitle) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              card.subtitle!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: BayHopText.body(
+                                size: 11.5,
+                                color: Colors.white.withValues(alpha: 0.84),
+                                height: 1.16,
+                              ),
+                            ),
+                          ],
+                          if (showLabels) ...[
+                            const SizedBox(height: 7),
+                            Wrap(
+                              spacing: 5,
+                              runSpacing: 5,
+                              children: [
+                                for (final label in visibleLabels)
+                                  _OverlayMetadataChip(
+                                    label: label,
+                                    maxWidth: chipMaxWidth,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    if (aspectRatio == null) return tile;
+    return AspectRatio(aspectRatio: aspectRatio!, child: tile);
+  }
+}
+
+class _OverlayMetadataChip extends StatelessWidget {
+  const _OverlayMetadataChip({
+    required this.label,
+    required this.maxWidth,
+  });
+
+  final String label;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BayHopText.body(
+            size: 10.5,
+            color: Colors.white,
+            weight: FontWeight.w800,
+            height: 1,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PhotoAttributionPill extends StatelessWidget {
+  const _PhotoAttributionPill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.46),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        'Photo: $label',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: BayHopText.body(
+          size: 8.5,
+          color: Colors.white,
+          weight: FontWeight.w700,
+          height: 1,
+        ),
+      ),
     );
   }
 }
@@ -1768,9 +2336,13 @@ class _PlacesLoadingRows extends StatelessWidget {
 }
 
 class _OverlayChip extends StatelessWidget {
-  const _OverlayChip({required this.label});
+  const _OverlayChip({
+    required this.label,
+    this.maxWidth,
+  });
 
   final String label;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -1781,12 +2353,19 @@ class _OverlayChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
       ),
-      child: Text(
-        label,
-        style: BayHopText.body(
-          size: 11.5,
-          weight: FontWeight.w800,
-          color: Colors.white,
+      child: ConstrainedBox(
+        constraints: maxWidth == null
+            ? const BoxConstraints()
+            : BoxConstraints(maxWidth: maxWidth!),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: BayHopText.body(
+            size: 11.5,
+            weight: FontWeight.w800,
+            color: Colors.white,
+          ),
         ),
       ),
     );
@@ -1812,96 +2391,13 @@ String _adventureKey(List<ExploreAdventureStop> stops) {
       .join(';;');
 }
 
-const String _bayFallbackImageUrl =
-    'https://images.unsplash.com/photo-1501594907352-04cda38ebc29'
-    '?auto=format&fit=crop&w=1200&q=80';
-const String _foodFallbackImageUrl =
-    'https://images.unsplash.com/photo-1504674900247-0877df9cc836'
-    '?auto=format&fit=crop&w=1200&q=80';
-const String _coffeeFallbackImageUrl =
-    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085'
-    '?auto=format&fit=crop&w=1200&q=80';
-const String _cultureFallbackImageUrl =
-    'https://images.unsplash.com/photo-1518998053901-5348d3961a04'
-    '?auto=format&fit=crop&w=1200&q=80';
-const String _outdoorsFallbackImageUrl =
-    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee'
-    '?auto=format&fit=crop&w=1200&q=80';
-const String _viewsFallbackImageUrl =
-    'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429'
-    '?auto=format&fit=crop&w=1200&q=80';
-
 String _fallbackImageUrlFor(Iterable<String?> cues) {
-  final text = cues.whereType<String>().join(' ').toLowerCase();
-
-  if (_containsAny(text, const ['coffee', 'cafe', 'espresso', 'bakery'])) {
-    return _coffeeFallbackImageUrl;
-  }
-  if (_containsAny(text, const [
-    'food',
-    'snack',
-    'restaurant',
-    'dinner',
-    'lunch',
-    'taco',
-    'crawl',
-    'market',
-  ])) {
-    return _foodFallbackImageUrl;
-  }
-  if (_containsAny(text, const [
-    'culture',
-    'museum',
-    'art',
-    'mural',
-    'music',
-    'book',
-    'gallery',
-  ])) {
-    return _cultureFallbackImageUrl;
-  }
-  if (_containsAny(text, const [
-    'view',
-    'sunset',
-    'waterfront',
-    'bridge',
-    'skyline',
-    'hill',
-    'lookout',
-  ])) {
-    return _viewsFallbackImageUrl;
-  }
-  if (_containsAny(text, const [
-    'outdoor',
-    'park',
-    'hike',
-    'lake',
-    'garden',
-    'trail',
-    'beach',
-  ])) {
-    return _outdoorsFallbackImageUrl;
-  }
-
-  return _bayFallbackImageUrl;
-}
-
-bool _containsAny(String text, List<String> needles) {
-  return needles.any(text.contains);
+  return fallbackExploreImageUrlFor(cues);
 }
 
 String? _usableImageUrl(String? value) {
   final text = _nullableString(value);
-  if (text == null) return null;
-
-  final uri = Uri.tryParse(text);
-  if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return null;
-  if (uri.host == 'example.com' ||
-      uri.host == 'example.org' ||
-      uri.host == 'example.net') {
-    return null;
-  }
-
+  if (!isUsableExploreImageUrl(text)) return null;
   return text;
 }
 

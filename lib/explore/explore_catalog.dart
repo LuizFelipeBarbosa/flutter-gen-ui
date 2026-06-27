@@ -22,12 +22,13 @@ Catalog buildExploreCatalog() =>
 const String _exploreCatalogPromptRules = '''
 Use ExploreHero, ExploreSummary, ExploreImageMosaic, ExploreAdventurePlan,
 ExplorerOptionCard, ExplorePlaceSearch, and ExploreNote for Bay Area
-exploration flows. Prefer image-rich modular surfaces: heroes and mosaics for
-broad inspiration, option cards for branches, ExploreAdventurePlan for one-shot
-ordered previews, and ExplorePlaceSearch for grounded venues and POIs because
-the client can enrich those cards with Google photos, distance, rating, price,
-and open status. Never use placeholder or example image URLs. Never auto-save
-stops; use add actions only when the user taps.
+exploration flows. Prefer image-rich modular surfaces: creative bento mosaics
+for broad visual branching, option cards for refinements, ExploreAdventurePlan
+for one-shot ordered previews, and Google Places-backed ExplorePlaceSearch for
+grounded venues and POIs because the client can enrich those cards with Google
+photos, distance, rating, price, and open status. Use varied broad imagery and
+avoid repeated generic images. Never use placeholder or example image URLs.
+Never auto-save stops; use add actions only when the user taps.
 ''';
 
 final CatalogItem exploreHeroItem = CatalogItem(

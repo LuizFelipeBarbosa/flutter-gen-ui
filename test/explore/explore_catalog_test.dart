@@ -58,4 +58,51 @@ void main() {
     expect(exploreSystemPrompt, contains('preview'));
     expect(exploreSystemPrompt, isNot(contains('https://example.com')));
   });
+
+  test('explore prompts prefer creative bento mosaics', () {
+    final systemPrompt = _normalizedPrompt(exploreSystemPrompt);
+    final catalogPrompt = _normalizedPrompt(
+      buildExploreCatalog().systemPromptFragments.join('\n'),
+    );
+
+    expect(systemPrompt, contains('broad visual branching'));
+    expect(systemPrompt, contains('creative bento-style'));
+    expect(catalogPrompt, contains('creative bento mosaics'));
+    expect(catalogPrompt, contains('broad visual branching'));
+  });
+
+  test('explore prompts route exact venues through Google Places', () {
+    final systemPrompt = _normalizedPrompt(exploreSystemPrompt);
+    final catalogPrompt = _normalizedPrompt(
+      buildExploreCatalog().systemPromptFragments.join('\n'),
+    );
+
+    expect(
+      systemPrompt,
+      contains('Google Places-backed ExplorePlaceSearch'),
+    );
+    expect(
+      systemPrompt,
+      contains('ExploreAdventurePlan stops with placeQuery'),
+    );
+    expect(systemPrompt, contains('Google photos'));
+    expect(catalogPrompt, contains('Google Places-backed ExplorePlaceSearch'));
+    expect(catalogPrompt, contains('Google photos'));
+  });
+
+  test('explore prompts require varied broad imagery', () {
+    final systemPrompt = _normalizedPrompt(exploreSystemPrompt);
+    final catalogPrompt = _normalizedPrompt(
+      buildExploreCatalog().systemPromptFragments.join('\n'),
+    );
+
+    expect(systemPrompt, contains('varied broad imagery'));
+    expect(systemPrompt, contains('avoid repeating'));
+    expect(systemPrompt, contains('generic skyline'));
+    expect(catalogPrompt, contains('varied broad imagery'));
+    expect(catalogPrompt, contains('avoid repeated generic images'));
+  });
 }
+
+String _normalizedPrompt(String prompt) =>
+    prompt.replaceAll(RegExp(r'\s+'), ' ').trim();

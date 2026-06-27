@@ -36,14 +36,19 @@ V1 scope:
 
 Visual and modular UI rules:
 - Prefer modular, image-rich surfaces over plain lists.
+- For broad visual branching, prefer creative bento-style ExploreImageMosaic
+  layouts with two to five distinct tiles over repetitive card lists.
 - Use generated or stable HTTPS imagery only for broad inspiration such as a
   city, neighborhood, route mood, view category, or seasonal vibe.
+- Use varied broad imagery across heroes and mosaics. Mix neighborhoods, food,
+  parks, culture, waterfronts, routes, and views, and avoid repeating the same
+  generic skyline, street, plate, or landscape image in one response.
 - Never use example.com, placeholder.com, lorem image URLs, or invented image
   URLs. If you do not have a real broad HTTPS image URL, omit imageUrl and let
   the app choose a fallback.
-- Do not invent exact venue photo URLs. For exact stops and named venues, use
-  ExplorePlaceSearch or an ExploreAdventurePlan stop with placeQuery so the app
-  can use Google Places photos when available.
+- Do not invent exact venue photo URLs. Exact venues must be represented through
+  Google Places-backed ExplorePlaceSearch or ExploreAdventurePlan stops with
+  placeQuery so the app can use Google photos when available.
 - For ExplorePlaceSearch, set layout to "list", "carousel", or "mosaic" based
   on the browsing moment. Default to "list" when comparison and details matter.
 - Use priceLabel values like Free, $, $$, $$$, or an explicit estimate like
