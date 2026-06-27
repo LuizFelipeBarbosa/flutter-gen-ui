@@ -9,7 +9,10 @@ Catalog buildExploreCatalog() =>
       systemPromptFragments: const [_exploreCatalogPromptRules],
     ).copyWith(
       newItems: [
+        exploreHeroItem,
         exploreSummaryItem,
+        exploreImageMosaicItem,
+        exploreAdventurePlanItem,
         explorerOptionCardItem,
         explorePlaceSearchItem,
         exploreNoteItem,
@@ -17,13 +20,66 @@ Catalog buildExploreCatalog() =>
     );
 
 const String _exploreCatalogPromptRules = '''
-Use ExploreSummary, ExplorerOptionCard, ExplorePlaceSearch, and ExploreNote
-for Bay Area exploration flows. Prefer rich generated option cards with
-description, distanceLabel, priceLabel, durationMinutes, category, and imagery
-when those fields are useful. Use ExplorePlaceSearch for grounded venues and
-POIs because the client can enrich those cards with Google photos, distance,
-rating, price, and open status.
+Use ExploreHero, ExploreSummary, ExploreImageMosaic, ExploreAdventurePlan,
+ExplorerOptionCard, ExplorePlaceSearch, and ExploreNote for Bay Area
+exploration flows. Prefer image-rich modular surfaces: heroes and mosaics for
+broad inspiration, option cards for branches, ExploreAdventurePlan for one-shot
+ordered previews, and ExplorePlaceSearch for grounded venues and POIs because
+the client can enrich those cards with Google photos, distance, rating, price,
+and open status. Never use placeholder or example image URLs. Never auto-save
+stops; use add actions only when the user taps.
 ''';
+
+final CatalogItem exploreHeroItem = CatalogItem(
+  name: 'ExploreHero',
+  dataSchema: S.object(
+    description:
+        'A large image-forward intro for a Bay Area exploration branch.',
+    properties: {
+      'title': S.string(description: 'Short hero heading.'),
+      'summary': S.string(description: 'One or two concise sentences.'),
+      'badges': S.list(
+        description: 'Optional compact labels.',
+        items: S.string(),
+        maxItems: 4,
+      ),
+      'imageUrl': S.string(
+        description:
+            'Optional stable HTTPS image URL for broad inspiration only.',
+      ),
+      'imageAltText': S.string(description: 'Short image accessibility label.'),
+      'query': S.string(
+        description:
+            'Optional follow-up query when the hero itself is tappable.',
+      ),
+      'actionName': S.string(
+        description: 'Action name to dispatch.',
+        enumValues: ['explore_option', 'explore_place'],
+      ),
+    },
+    required: ['title', 'summary'],
+  ),
+  widgetBuilder: (context) {
+    return ExploreHero.fromContext(context);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'ExploreHero',
+        'title': 'Ferry, food, and a view',
+        'summary':
+            'A waterfront-first adventure with a flexible snack stop and an '
+            'easy sunset branch.',
+        'badges': ['Views', 'Food', 'Transit-friendly'],
+        'imageUrl':
+            'https://images.unsplash.com/photo-1501594907352-04cda38ebc29'
+            '?auto=format&fit=crop&w=1200&q=80',
+        'query': 'Build a waterfront snack and views adventure',
+      },
+    ]),
+  ],
+);
 
 final CatalogItem exploreSummaryItem = CatalogItem(
   name: 'ExploreSummary',
@@ -46,6 +102,115 @@ final CatalogItem exploreSummaryItem = CatalogItem(
         'component': 'ExploreSummary',
         'title': 'San Francisco afternoon',
         'summary': 'Pick a branch and I will build around your saved stops.',
+      },
+    ]),
+  ],
+);
+
+final CatalogItem exploreImageMosaicItem = CatalogItem(
+  name: 'ExploreImageMosaic',
+  dataSchema: S.object(
+    description: 'A two-to-five tile visual browser for broad inspiration.',
+    properties: {
+      'title': S.string(description: 'Optional block title.'),
+      'summary': S.string(description: 'Optional short block summary.'),
+      'images': S.list(
+        description: 'Image tiles for broad city, neighborhood, or vibe ideas.',
+        items: _mosaicImageSchema,
+        minItems: 2,
+        maxItems: 5,
+      ),
+    },
+    required: ['images'],
+  ),
+  widgetBuilder: (context) {
+    return ExploreImageMosaic.fromContext(context);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'ExploreImageMosaic',
+        'title': 'Pick a vibe',
+        'images': [
+          {
+            'imageUrl':
+                'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429'
+                '?auto=format&fit=crop&w=1200&q=80',
+            'title': 'Hilltop reward',
+            'badge': 'Views',
+            'query': 'Find a transit-friendly hilltop view',
+          },
+          {
+            'imageUrl':
+                'https://images.unsplash.com/photo-1504674900247-0877df9cc836'
+                '?auto=format&fit=crop&w=1200&q=80',
+            'title': 'Snack crawl',
+            'badge': 'Food',
+            'query': 'Build a snack crawl nearby',
+          },
+        ],
+      },
+    ]),
+  ],
+);
+
+final CatalogItem exploreAdventurePlanItem = CatalogItem(
+  name: 'ExploreAdventurePlan',
+  dataSchema: S.object(
+    description:
+        'A one-shot ordered adventure preview with three to five concrete '
+        'stops and an Add all action. Use for complete-adventure requests.',
+    properties: {
+      'title': S.string(description: 'Adventure title.'),
+      'summary': S.string(description: 'Short plan overview.'),
+      'durationLabel': S.string(description: 'Total duration hint.'),
+      'priceLabel': S.string(description: r'Estimated total price, e.g. $$.'),
+      'transitHint': S.string(description: 'Transit or walking hint.'),
+      'addAllLabel': S.string(description: 'Bulk add button label.'),
+      'stops': S.list(
+        description: 'Ordered concrete stops to preview before saving.',
+        items: _adventureStopSchema,
+        minItems: 3,
+        maxItems: 5,
+      ),
+    },
+    required: ['title', 'summary', 'stops'],
+  ),
+  widgetBuilder: (context) {
+    return ExploreAdventurePlan.fromContext(context);
+  },
+  exampleData: [
+    () => jsonEncode([
+      {
+        'id': 'root',
+        'component': 'ExploreAdventurePlan',
+        'title': 'One-shot Oakland afternoon',
+        'summary':
+            'Coffee, lake air, a museum stop, and an easy dinner finish.',
+        'durationLabel': '3h 30m',
+        'priceLabel': r'$-$$',
+        'transitHint': 'BART + walking',
+        'stops': [
+          {
+            'title': 'Awaken Cafe',
+            'placeQuery': 'Awaken Cafe Oakland',
+            'category': 'Coffee',
+            'durationMinutes': 35,
+          },
+          {
+            'title': 'Lake Merritt',
+            'placeQuery': 'Lake Merritt Oakland',
+            'category': 'Outdoors',
+            'durationMinutes': 60,
+          },
+          {
+            'title': 'Oakland Museum of California',
+            'placeQuery': 'Oakland Museum of California',
+            'category': 'Culture',
+            'durationMinutes': 90,
+          },
+        ],
       },
     ]),
   ],
@@ -82,8 +247,7 @@ final CatalogItem explorerOptionCardItem = CatalogItem(
       ),
       'priceLabel': S.string(
         description:
-            'Optional estimated price label, such as Free, $, $$, or '
-            r'$15-25.',
+            r'Optional estimated price label, such as Free, $, $$, or $15-25.',
       ),
       'imageUrl': S.string(
         description:
@@ -134,6 +298,10 @@ final CatalogItem explorePlaceSearchItem = CatalogItem(
       'radiusMeters': S.number(
         description: 'Optional bias/restriction radius in meters.',
       ),
+      'layout': S.string(
+        description: 'Visual result layout. Default is list.',
+        enumValues: ['list', 'carousel', 'mosaic'],
+      ),
       'maxResultCount': S.integer(
         description: 'Number of places to show, 1 to 8.',
       ),
@@ -151,6 +319,7 @@ final CatalogItem explorePlaceSearchItem = CatalogItem(
         'title': 'Coffee nearby',
         'query': 'coffee shops in the Mission San Francisco',
         'includedType': 'cafe',
+        'layout': 'carousel',
         'maxResultCount': 4,
       },
     ]),
@@ -183,4 +352,46 @@ final CatalogItem exploreNoteItem = CatalogItem(
       },
     ]),
   ],
+);
+
+final Schema _mosaicImageSchema = S.object(
+  properties: {
+    'imageUrl': S.string(description: 'Stable HTTPS image URL.'),
+    'title': S.string(description: 'Optional tile title.'),
+    'badge': S.string(description: 'Optional tile label.'),
+    'imageAltText': S.string(description: 'Short image accessibility label.'),
+    'query': S.string(description: 'Optional follow-up query.'),
+    'actionName': S.string(
+      description: 'Action name to dispatch.',
+      enumValues: ['explore_option', 'explore_place'],
+    ),
+  },
+  required: ['imageUrl'],
+);
+
+final Schema _adventureStopSchema = S.object(
+  properties: {
+    'title': S.string(description: 'Concrete stop name.'),
+    'description': S.string(description: 'Short preview note.'),
+    'address': S.string(description: 'Optional address when known.'),
+    'category': S.string(description: 'Stop category.'),
+    'durationMinutes': S.integer(description: 'Estimated stop duration.'),
+    'priceLabel': S.string(description: 'Optional stop price hint.'),
+    'transitHint': S.string(description: 'Optional transit or walk hint.'),
+    'notes': S.string(description: 'Optional itinerary note.'),
+    'placeId': S.string(description: 'Optional Google place id when known.'),
+    'placeQuery': S.string(
+      description: 'Google Places text query for this exact stop.',
+    ),
+    'latitude': S.number(description: 'Optional latitude when known.'),
+    'longitude': S.number(description: 'Optional longitude when known.'),
+    'googleMapsUri': S.string(description: 'Optional Google Maps URI.'),
+    'imageUrl': S.string(
+      description:
+          'Optional fallback image URL. Prefer Google Places photos for exact '
+          'venues when available.',
+    ),
+    'imageAltText': S.string(description: 'Short image accessibility label.'),
+  },
+  required: ['title'],
 );

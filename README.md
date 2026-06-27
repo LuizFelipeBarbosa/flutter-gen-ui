@@ -1,356 +1,275 @@
-# BayHop 🚆
+# BayHop 🚆🧭
 
 [![style: very good analysis][very_good_analysis_badge]][very_good_analysis_link]
 [![License: MIT][license_badge]][license_link]
 
-**A Generative UI (GenUI) transit copilot for the San Francisco Bay Area.**
+**BayHop** is a Bay Area transit & exploration app where the assistant answers in _live user interface_ instead of plain text. Ask _"Downtown Berkeley → SFO, leave now"_ or _"Plan a playful Oakland food crawl"_ and a language model streams back real Flutter cards — trip plans, live departure boards, place lists, service alerts — rendered on top of an interactive map.
 
-Ask in plain language — _"Downtown Berkeley to SFO, leave now"_, _"next trains from Embarcadero"_, _"find coffee and bookstores near me"_ — and BayHop replies with a **live user interface** instead of a wall of text. Trip plans, live departure boards, service alerts, and place cards are described by the model and rendered as real Flutter widgets on a map-backed, iOS-style surface.
+It's a **Generative UI (GenUI)** app built on Flutter and the [`genui`](https://pub.dev/packages/genui) package, and it started life as the [Very Good Ventures GenUI Hackathon Starter](https://github.com/VGVentures/genui_hackathon_starter). This README covers both: **what BayHop is** and **how to build on the GenUI architecture underneath it**.
 
-BayHop is built on top of the **GenUI Hackathon Starter**: it wires Inception Labs' [Mercury 2](https://docs.inceptionlabs.ai/get-started/get-started) model to Flutter's [`genui`](https://pub.dev/packages/genui) package, then layers on a transit domain — real BART/Muni/Caltrain geography, live departures, geolocation, Google Places, and a hand-built "BayHop" design system.
-
----
-
-## Table of contents
-
-- [What BayHop does](#what-bayhop-does)
-- [What is GenUI, in one minute](#what-is-genui-in-one-minute)
-- [How it works](#how-it-works)
-- [Getting started](#getting-started)
-- [Configuration & API keys](#configuration--api-keys)
-- [Live data sources](#live-data-sources)
-- [Project layout](#project-layout)
-- [The catalogs](#the-catalogs-what-the-model-can-build)
-- [Development](#development)
-- [Extending BayHop](#extending-bayhop)
-- [Credits](#credits)
+<!-- Add screenshots/GIFs of the Transit and Explore tabs here. -->
 
 ---
 
-## What BayHop does
+## What's inside
 
-BayHop has two tabs, switched from the bottom navigation bar:
+BayHop is a two-tab experience (a bottom `NavigationBar` over an `IndexedStack`, in `lib/shell_page.dart`):
 
-### 🚆 Transit
-A full-screen OpenStreetMap background with the user's location, fronted by a frosted, draggable bottom sheet. Type a request into the floating search bar and the model streams back one of:
+### 🚆 Transit tab (`lib/home_page.dart`)
 
-- **Trip plans** — one to three ranked journeys with legs, transfers, fares, crowding, depart/arrive times, and a recommended option.
-- **Live departures** — real-time boards from BART and 511-monitored operators when data is available, planned estimates otherwise.
-- **Service alerts** — delays and status, always explicit about whether the data is live or a planning estimate.
+A full-bleed [OpenStreetMap](https://www.openstreetmap.org/) map with a draggable, frosted bottom sheet that hosts the live generated UI. Ask for a route or departures and the model replies with:
 
-A "nearby" row finds your closest BART/Muni/Caltrain stop via geolocation and offers it as a one-tap origin. The bottom sheet intentionally hosts the **live GenUI surface** — every card you see is model-generated, not hardcoded.
+- **Journey cards** — origin → destination trip options with a step-by-step timeline (walk / ride / change legs) and a colored route drawn on the map.
+- **Live departure boards** — real-time data from **BART** (`api.bart.gov`) and the **511 SF Bay Open Data** SIRI feed (Muni, Caltrain, AC Transit, ferries, and other monitored operators), with a 60-second cache and 30-second auto-refresh. Falls back to clearly-labeled _Planned_/_Estimated_ rows when a live fetch fails.
+- **Service alerts and notes** for delays and disruptions.
 
-### 🧭 Explore
-A trip/itinerary builder for Bay Area exploration. Ask for day plans, neighborhoods, food crawls, or transit-friendly outings and the model returns branching idea cards and **Google Places-grounded** venue cards you can save into an itinerary. Saved stops are fed back to the model as context so it avoids duplicates.
+### 🧭 Explore tab (`lib/explore/explore_page.dart`)
 
-The two tabs run independent GenUI sessions with their own catalogs and system prompts, but share the same `UserLocationController` and model client.
+A "Bay Area Explorer" surface that turns a vibe or neighborhood into a transit-friendly mini-adventure:
+
+- **Exploration branches** the model suggests to drill into ideas.
+- **Place cards** grounded in **Google Places (New)** — real venues with ratings, price, hours, and photos.
+- A persistent **itinerary** you build by adding places (saved locally via `shared_preferences`), which you can then **hand off to the Transit tab** to be routed in order.
+
+### ⚙️ Under the hood
+
+- **Generative UI core** — every card is described by the model as **A2UI** (agent-to-UI) JSON and rendered live into a `genui` `Surface`. The model can only ever ask for widgets you've registered in a **catalog**, so it can never request something the app can't draw.
+- **Pluggable model clients** — ships with **Inception Labs Mercury 2** as the default LLM, plus ready-to-swap Google Gemini and Featherless clients behind one `ModelClient` interface.
+- **Real device location** — `geolocator` finds your position and the nearest Bay Area transit stop, which is fed to the model as context.
+- **BayHop design system** — a light-mode "generative transit" look: a fixed palette, a blue→purple AI gradient, transit-line bullets, and Space Grotesk / Hanken Grotesk / JetBrains Mono typography (`lib/transit/bayhop_tokens.dart`, `bayhop_atoms.dart`).
 
 ---
 
 ## What is GenUI, in one minute
 
-A normal chat app sends your message to a model and gets text back. GenUI sends your message to a model and gets back a structured description of a UI (in a format called **A2UI**, "agent-to-UI"). The `genui` package turns that description into live Flutter widgets on screen.
+A normal chat app sends your message to a model and gets **text** back. A GenUI app sends your message to a model and gets back a structured description of a **user interface** (in a format called **A2UI**). The `genui` package turns that description into live Flutter widgets on screen.
 
-The model can only ever describe widgets you've told it about. That list of allowed widgets is the **catalog**. Because the same catalog is fed to the model _and_ used to render, the model can never ask for something the app can't draw.
+The model can only ever describe widgets you've told it about. That list of allowed widgets is the **catalog**. Because the same catalog is fed to the model _and_ used to render, the model can never ask for something your app can't draw.
 
-So the two knobs that shape behavior most are:
+So the two knobs you'll touch most are:
 
-- **the catalog** — _what_ the model can build (the widget vocabulary).
-- **the system prompt** — _how_ the model should behave (persona, domain rules, geography).
+- **The catalog** — _what_ the model can build (the widget vocabulary).
+- **The prompt** — _how_ the model should behave (persona, tone, domain rules).
 
-Everything else is plumbing that connects those two things to Mercury 2 and to the screen. New to GenUI? See the [`genui` package on pub.dev](https://pub.dev/packages/genui).
+BayHop has two of each, one per tab:
+
+| Tab     | Catalog                                                   | System prompt                     |
+| ------- | --------------------------------------------------------- | --------------------------------- |
+| Transit | `lib/catalog.dart` (+ `lib/transit/transit_catalog.dart`) | `lib/prompt.dart`                 |
+| Explore | `lib/explore/explore_catalog.dart`                        | `lib/explore/explore_prompt.dart` |
+
+Everything else is plumbing that connects those to a model and to the screen.
 
 ---
 
-## How it works
+## How BayHop works
 
 ```
- your request ─▶ GenUiSession ─▶ ModelClient (Mercury 2)  ── streams A2UI JSON ─┐
-                     │                                                          │
-        location +   │                                                          ▼
-        time context │                            A2uiTransportAdapter ──▶ SurfaceController
-                     │                                                          │
-                     └───────────────── Conversation (state, surfaces) ◀────────┘
-                                                   │
-                                                   ▼
-                                       Surface widget renders live cards
+your message
+   │
+   ▼
+GenUiSession (lib/conversation.dart)
+   │   combines catalog + system prompt via PromptBuilder.chat(...)
+   │   adds per-turn context (time, location, itinerary)
+   ▼
+ModelClient (default: InceptionModelClient → Mercury 2)
+   │   streams A2UI JSON chunks
+   ▼
+A2uiTransportAdapter → SurfaceController
+   │
+   ▼
+live Flutter widgets in a genui Surface
 ```
 
-The pipeline is owned by a single class, **`GenUiSession`** (`lib/conversation.dart`), which builds and disposes four pieces as one unit:
+`GenUiSession` (`lib/conversation.dart`) is the heart of the pipeline. It ties together the four pieces from the `genui` package — the `SurfaceController` (renders), the transport (carries A2UI chunks), the `Conversation` (tracks state), and the `ModelClient` (talks to the LLM) — and owns their lifecycle as a single unit. Each tab builds its own session with its own catalog and prompt.
 
-1. **`ModelClient`** (`lib/model/`) — a model-agnostic interface that owns conversation history and streams raw text chunks. The default is **`InceptionModelClient`** (Mercury 2, via Inception's OpenAI-compatible streaming endpoint). Drop-in alternates for **Gemini** and **Featherless** ship alongside it.
-2. **`A2uiTransportAdapter`** — bridges the model's streamed chunks into the GenUI transport, parsing A2UI as it arrives.
-3. **`SurfaceController`** — renders surfaces from the catalog and tracks which exist.
-4. **`Conversation`** — ties controller and transport together and exposes the combined state (active surfaces, waiting status) that the UI listens to.
+### Model clients
 
-On every turn, `GenUiSession` enriches the user's request with the **current time** and a **context provider** (the nearest-stop location snapshot on the Transit tab, the saved itinerary on Explore) before sending it to the model, so the model can resolve "near me" and "leave now" correctly.
+All providers sit behind one abstraction, `ModelClient` (`lib/model/model_client.dart`). It owns the conversation history and exposes the streaming response; a concrete client only implements `generateResponse()`. Swap providers by passing a different `modelClientBuilder` to `GenUiSession` — nothing else changes.
 
-The system prompt (`lib/prompt.dart` for Transit, `lib/explore/explore_prompt.dart` for Explore) encodes real Bay Area geography: line ids and fares, station ordering, valid transfer points, BART station abbreviations, and 511 agency ids. The `genui` framework automatically appends the A2UI format instructions and catalog schemas around it.
+| Client                   | File                                      | Default model               | API key env var     | Status                 |
+| ------------------------ | ----------------------------------------- | --------------------------- | ------------------- | ---------------------- |
+| `InceptionModelClient`   | `lib/model/inception_model_client.dart`   | `mercury-2`                 | `INCEPTION_API_KEY` | **Default (wired in)** |
+| `GeminiModelClient`      | `lib/model/gemini_model_client.dart`      | `gemini-3.5-flash`          | `GEMINI_API_KEY`    | Available — opt in     |
+| `FeatherlessModelClient` | `lib/model/featherless_model_client.dart` | `Qwen/Qwen2.5-72B-Instruct` | `FEATHERLESS_API_KEY` | Available — opt in   |
+
+To switch models, supply the matching key and pass the builder, e.g. `GenUiSession(modelClientBuilder: GeminiModelClient.new, ...)`. To add a new provider, write a `ModelClient` subclass.
 
 ---
 
 ## Getting started
 
-This walkthrough assumes you have **never installed Flutter**. The quickest path is running BayHop as a **native desktop app** — no simulators or devices needed.
-
 ### 1. Install Flutter
 
-<details open>
-<summary><strong>macOS</strong></summary>
+BayHop targets the Flutter SDK that ships **Dart `^3.12.1`** (see [`pubspec.yaml`](pubspec.yaml)). If you've never installed Flutter, follow the official guide for your OS at [docs.flutter.dev/get-started/install](https://docs.flutter.dev/get-started/install), then confirm your toolchain:
 
-1. Install [Xcode](https://apps.apple.com/us/app/xcode/id497799835) from the App Store (required to build macOS apps). After it installs, open it once so it can finish setting up, then run:
-   ```sh
-   sudo xcodebuild -runFirstLaunch
-   ```
-2. Install Flutter. If you have [Homebrew](https://brew.sh):
-   ```sh
-   brew install --cask flutter
-   ```
-   Otherwise, follow the manual steps at [docs.flutter.dev/get-started/install/macos](https://docs.flutter.dev/get-started/install/macos).
-3. Confirm everything is healthy:
-   ```sh
-   flutter doctor
-   ```
-   You want green checkmarks for **Flutter** and **Xcode** at minimum. Android/Chrome warnings are fine; you don't need them for macOS.
+```sh
+flutter doctor
+```
 
-</details>
+You want green checkmarks for **Flutter** plus at least one run target (Xcode for macOS/iOS, the Android toolchain for Android, or Chrome for web). The quickest path on a Mac with no devices is the native **macOS** app; **Chrome** works on any OS.
 
-<details>
-<summary><strong>Windows</strong></summary>
+> Supported platforms in this repo: **macOS, iOS, Android, and web**. (There are no `windows/` or `linux/` desktop folders; run `flutter create .` if you want to add them.)
 
-1. Install [Visual Studio](https://visualstudio.microsoft.com/downloads/) (the IDE, not VS Code) with the **"Desktop development with C++"** workload.
-2. Install Flutter. If you have [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/), open PowerShell and run:
-   ```powershell
-   winget install --id=Google.Flutter -e
-   ```
-   Otherwise, follow the manual steps at [docs.flutter.dev/get-started/install/windows](https://docs.flutter.dev/get-started/install/windows). Reopen your terminal afterwards so `flutter` is on your `PATH`.
-3. Confirm everything is healthy:
-   ```powershell
-   flutter doctor
-   ```
-   You want green checkmarks for **Flutter** and **Visual Studio** at minimum.
+### 2. Get your API keys
 
-</details>
+| Key                                  | Needed for                                                         | Where to get it                                                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **Inception** (`INCEPTION_API_KEY`)  | **Required** — the default model that powers both tabs            | [platform.inceptionlabs.ai](https://platform.inceptionlabs.ai/dashboard/api-keys)                                          |
+| **Google Places** (`GOOGLE_PLACES_API_KEY`) | Optional — real place cards in Explore (and Transit place search) | [Google Cloud Console](https://developers.google.com/maps/documentation/places/web-service/get-api-key) → enable **Places API (New)** |
+| **511** (`KEY_511`)                  | Optional — live departures beyond BART (Muni, Caltrain, AC, ferries…) | [511.org Open Data token](https://511.org/open-data/token)                                                              |
 
-<details>
-<summary><strong>Linux</strong></summary>
+**BART real-time departures work out of the box** using BART's public demo key — no setup required. Supply your own with `BART_API_KEY` if you have one.
 
-1. Install the desktop build dependencies. On Debian/Ubuntu:
-   ```sh
-   sudo apt-get update
-   sudo apt-get install -y curl git unzip xz-utils zip libglu1-mesa \
-     clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
-   ```
-   (Package names differ on Fedora/Arch; see the Flutter docs.)
-2. Install Flutter. The simplest cross-distro option is [snap](https://snapcraft.io/):
-   ```sh
-   sudo snap install flutter --classic
-   ```
-   Otherwise, follow the manual steps at [docs.flutter.dev/get-started/install/linux](https://docs.flutter.dev/get-started/install/linux).
-3. Confirm everything is healthy:
-   ```sh
-   flutter doctor
-   ```
-   You want green checkmarks for **Flutter** and **Linux toolchain** at minimum.
+### 3. Configure your keys
 
-</details>
+Keys are injected at **build time** as compile-time constants (`String.fromEnvironment`), so they never live in source control. Copy the template and fill in the keys you have:
 
-This project targets the Flutter SDK that ships **Dart `^3.12.1`** (see [pubspec.yaml](pubspec.yaml)). If `flutter doctor` reports an older Dart, run `flutter upgrade`.
+```sh
+cp .env.example .env
+# then edit .env and paste your values
+```
 
-### 2. Get an Inception API key
+`.env` is gitignored. At minimum set `INCEPTION_API_KEY`; the other entries can stay blank and those features simply stay off.
 
-BayHop's model is Mercury 2, reached through the Inception API.
+> **Compile-time, not runtime.** Because keys are baked in via `--dart-define`, editing `.env` requires a **restart** (not just hot reload). A plain shell `export INCEPTION_API_KEY=...` is **not** picked up — it must go through `--dart-define`/`--dart-define-from-file`.
 
-1. Go to the [Inception Platform](https://platform.inceptionlabs.ai/) and sign in.
-2. Open [API Keys](https://platform.inceptionlabs.ai/dashboard/api-keys) and create a key.
-3. Copy it somewhere safe. Keys are passed in at run time and never stored in source control.
-
-This is the only **required** key. Everything else ([Configuration & API keys](#configuration--api-keys)) is optional and degrades gracefully.
-
-### 3. Install dependencies
+### 4. Install dependencies and run
 
 ```sh
 flutter pub get
 ```
 
-### 4. Run the app
-
-Enable desktop support for your platform once (harmless if already enabled):
+Then run on your platform of choice, passing the env file:
 
 ```sh
-flutter config --enable-macos-desktop    # or --enable-windows-desktop / --enable-linux-desktop
-```
-
-The most convenient way to supply keys is a **`.env` file** in the project root (it is git-ignored). Create one with the keys you have:
-
-```ini
-INCEPTION_API_KEY=your_inception_key
-KEY_511=your_511_token
-GOOGLE_PLACES_API_KEY=your_google_places_key
-```
-
-Then run, pointing Flutter at the file:
-
-```sh
-# macOS (use -d windows or -d linux on those platforms)
+# macOS desktop (quickest on a Mac)
 flutter run -d macos --dart-define-from-file=.env
+
+# Web (Chrome) — works on any OS
+flutter run -d chrome --dart-define-from-file=.env
+
+# iOS / Android (device or simulator/emulator running)
+flutter run -d ios      --dart-define-from-file=.env
+flutter run -d <device> --dart-define-from-file=.env
 ```
 
-Prefer not to use a file? Pass keys inline with `--dart-define` instead:
+The first build takes a minute or two; later runs are faster. Once it's up, pick **Transit** or **Explore**, tap a suggestion, or type a request like _"Next trains from Embarcadero"_.
 
-```sh
-flutter run -d macos \
-  --dart-define=INCEPTION_API_KEY=your_inception_key \
-  --dart-define=KEY_511=your_511_token \
-  --dart-define=GOOGLE_PLACES_API_KEY=your_google_places_key
-```
+> **Web note:** browsers may block direct calls to `api.bart.gov` (CORS). Route BART through a small proxy by setting `BART_PROXY_BASE_URL`. Geolocation also prompts differently on web.
 
-The first build takes a minute or two; later runs are faster.
-
-> **Why `--dart-define`?** Keys are injected as compile-time constants read with `String.fromEnvironment(...)`. This keeps secrets out of the codebase for local desktop runs. **Do not** ship public web/mobile builds with `KEY_511` or `GOOGLE_PLACES_API_KEY` embedded — use a server-side proxy for production access to those APIs.
-
-> **Windows note:** In PowerShell the commands above work as-is. If a key contains special characters, quote the whole flag: `"--dart-define=INCEPTION_API_KEY=your_key_here"`.
-
-> **Tip:** Tired of the long command? In VS Code, add a `launch.json` config with `"args": ["--dart-define-from-file=.env"]`.
+> **Tip:** Tired of typing the flag? In VS Code add a `launch.json` config with `"args": ["--dart-define-from-file=.env"]`.
 
 ---
 
-## Configuration & API keys
+## Configuration reference
 
-All configuration is supplied at build time via `--dart-define` (or `--dart-define-from-file=.env`). Only `INCEPTION_API_KEY` is required; the rest unlock optional features and the app behaves sensibly without them.
+Every setting is a `--dart-define` (or a line in `.env`):
 
-| Variable                | Required | Used for                                                                                                                     |
-| ----------------------- | :------: | ---------------------------------------------------------------------------------------------------------------------------- |
-| `INCEPTION_API_KEY`     |   ✅     | The Mercury 2 model that powers every generated surface (Transit **and** Explore).                                           |
-| `KEY_511`               |   ➖     | Live departures from [511 SF Bay Open Data](https://511.org/open-data/token) — Muni, Caltrain, AC Transit, VTA, ferries, and other monitored operators. Without it, the model falls back to planned estimates. |
-| `BART_PROXY_BASE_URL`   |   ➖     | Optional base URL for a BART real-time proxy. Falls back to BART's public real-time feed when unset.                         |
-| `GOOGLE_PLACES_API_KEY` |   ➖     | Grounds the Explore tab's venue cards with real [Google Places](https://developers.google.com/maps/documentation/places/web-service) data. Explore still works without it, just without live place lookups. |
-| `GEMINI_API_KEY`        |   ➖     | Only if you swap the default model for `GeminiModelClient`.                                                                  |
-| `FEATHERLESS_API_KEY`   |   ➖     | Only if you swap the default model for `FeatherlessModelClient`.                                                             |
+| Variable                | Required?                    | Enables                                                  | Default if unset                       |
+| ----------------------- | ---------------------------- | -------------------------------------------------------- | -------------------------------------- |
+| `INCEPTION_API_KEY`     | **Yes** (default model)      | The Mercury 2 LLM powering both tabs                     | _Model calls fail with a clear error_  |
+| `GOOGLE_PLACES_API_KEY` | For place search             | Explore place cards & Transit place search               | _Place cards show a warning note_      |
+| `KEY_511`               | For non-BART live departures | 511 SF Bay live boards (Muni, Caltrain, AC, ferries…)    | _BART still works; 511 boards error_   |
+| `BART_API_KEY`          | Optional                     | Use your own BART API key                                | Public BART demo key (rate-limited)    |
+| `BART_PROXY_BASE_URL`   | Optional                     | Route BART requests through a proxy (e.g. web CORS)      | Direct calls to `api.bart.gov`         |
+| `GEMINI_API_KEY`        | Only if you swap to Gemini   | `GeminiModelClient`                                      | —                                      |
+| `FEATHERLESS_API_KEY`   | Only if you swap to Featherless | `FeatherlessModelClient`                              | —                                      |
 
-Keys live in `.env` / your editor config, **never** in source control (`.env` and `.env.*` are git-ignored).
-
----
-
-## Live data sources
-
-BayHop blends model reasoning with real data so plans stay grounded:
-
-- **BART real-time departures** — `lib/transit/bart_departures_client.dart` calls BART's public real-time feed (or a proxy via `BART_PROXY_BASE_URL`). Used when the model emits a `TransitLiveDepartures` board with `source: "bart"` and a known station abbreviation.
-- **511 SF Bay Open Data** — the same client fetches live departures for Muni, Caltrain, AC Transit, VTA, SamTrans, Golden Gate, and ferries when `KEY_511` is set and the model supplies a known agency id + stop. Otherwise the model is instructed to show planned estimates and flag them as such.
-- **Geolocation** — `lib/location/` uses `geolocator` to find the device's position, then resolves the nearest Bay Area transit stop from a built-in stop list. That snapshot is injected into the prompt so "near me" / "from here" resolve correctly, and surfaces a one-tap "nearby" origin in the UI.
-- **Google Places** — `lib/places/google_places_client.dart` powers Explore's `ExplorePlaceSearch` cards with real venue details (name, address, rating, etc.) when `GOOGLE_PLACES_API_KEY` is set.
-
-The model is explicitly prompted to never pretend an estimate is live data.
+Missing optional keys degrade **per feature** — the app still launches; only the feature that needs the key is affected.
 
 ---
 
 ## Project layout
 
-Everything meaningful lives in [`lib/`](lib/). The pieces you're most likely to touch are at the top.
+```
+lib/
+├── main.dart                 # entry point → runApp(MainApp)
+├── app.dart                  # MaterialApp "BayHop": theme + BayHop design tokens
+├── shell_page.dart           # two-tab shell; owns shared location & itinerary state
+│
+├── conversation.dart         # GenUiSession — the GenUI pipeline (the heart)
+├── catalog.dart              # default (Transit) catalog = Basic widgets + transit items
+├── prompt.dart               # default (Transit) system prompt — Bay Area transit rules
+│
+├── model/                    # pluggable LLM clients behind one ModelClient interface
+│   ├── model_client.dart     #   the abstraction + the swap point
+│   ├── inception_model_client.dart   # ← default (Mercury 2)
+│   ├── gemini_model_client.dart      # alternate (opt in)
+│   └── featherless_model_client.dart # alternate (opt in)
+│
+├── home_page.dart            # Transit tab: OSM map + bottom sheet hosting the Surface
+├── transit/                  # transit GenUI cards, live departures (BART + 511),
+│   │                         #   line palette, route geometry, BayHop design system
+│   ├── transit_catalog.dart  #   8 transit components the model can emit
+│   ├── transit_widgets.dart  #   the card widgets + journey/leg/departure models
+│   ├── bart_departures_client.dart   # BART real-time + 511 Open Data client
+│   ├── transit_lines.dart    #   line colors, BART aliases, public demo key
+│   ├── transit_route_geometry.dart   # journey → map route overlay
+│   ├── bayhop_tokens.dart    #   palette, AI gradient, typography
+│   └── bayhop_atoms.dart     #   shared primitives (bullets, journey strip, frosted surface…)
+│
+├── explore/                  # Explore tab
+│   ├── explore_page.dart     #   composer + generated content + itinerary panel
+│   ├── explore_catalog.dart  #   7 explore components (hero, summary, mosaic, plan, option, place search, note)
+│   ├── explore_prompt.dart   #   Explore system prompt
+│   ├── explore_widgets.dart  #   explore card widgets (incl. live Places search)
+│   ├── itinerary.dart        #   ItineraryStop model + controller (add/reorder/dedupe)
+│   ├── itinerary_store.dart  #   shared_preferences persistence
+│   └── *_handoff_controller.dart     # cross-tab handoff (Transit ⇄ Explore)
+│
+├── location/                 # geolocation + map
+│   ├── user_location_controller.dart # geolocator-backed location state
+│   ├── osm_map_background.dart        # flutter_map OpenStreetMap background + route overlay
+│   ├── bay_area_transit_stops.dart    # hardcoded stop dataset + nearest-stop lookup
+│   └── ...
+│
+└── places/                   # Google Places (New) v1 client + result models
+```
 
-### Shape the behavior (start here)
-
-| File | What it's for |
-| --- | --- |
-| [`lib/prompt.dart`](lib/prompt.dart) | The **Transit** system prompt: Bay Area geography, line ids, fares, station ordering, transfer rules, BART/511 abbreviations, and which components to emit. |
-| [`lib/explore/explore_prompt.dart`](lib/explore/explore_prompt.dart) | The **Explore** system prompt: exploration scope, when to branch ideas vs. fetch real places, Google Places compliance rules. |
-| [`lib/transit/transit_catalog.dart`](lib/transit/transit_catalog.dart) | The **Transit catalog** — the widgets the model may render (journeys, departure boards, alerts, notes). |
-| [`lib/explore/explore_catalog.dart`](lib/explore/explore_catalog.dart) | The **Explore catalog** — summaries, option cards, place search, notes. |
-| [`lib/catalog.dart`](lib/catalog.dart) | Composes `BasicCatalogItems` with the transit catalog into the default vocabulary. |
-
-### The GenUI pipeline
-
-| File | What it's for |
-| --- | --- |
-| [`lib/conversation.dart`](lib/conversation.dart) | **`GenUiSession`** — the heart of the pipeline. Ties together the `SurfaceController`, transport, `Conversation`, and `ModelClient`, and enriches each turn with time + location/itinerary context. |
-| [`lib/model/model_client.dart`](lib/model/model_client.dart) | The model-agnostic `ModelClient` interface (owns history + streamed `latestResponse`). Swap models by subclassing; nothing else changes. |
-| [`lib/model/inception_model_client.dart`](lib/model/inception_model_client.dart) | Default client — Mercury 2 over Inception's streaming chat endpoint. |
-| [`lib/model/gemini_model_client.dart`](lib/model/gemini_model_client.dart), [`featherless_model_client.dart`](lib/model/featherless_model_client.dart) | Alternate `ModelClient` implementations. |
-
-### The app shell & UI
-
-| File | What it's for |
-| --- | --- |
-| [`lib/main.dart`](lib/main.dart) · [`lib/app.dart`](lib/app.dart) | Entry point and root `MaterialApp` (BayHop theme, Google Fonts). |
-| [`lib/shell_page.dart`](lib/shell_page.dart) | The two-tab shell (`Transit` / `Explore`) and shared location controller. |
-| [`lib/home_page.dart`](lib/home_page.dart) | The Transit tab: OSM map background, frosted draggable bottom sheet, search bar, nearby row, and the live GenUI surface. |
-| [`lib/explore/`](lib/explore/) | The Explore tab: page, catalog, prompt, custom widgets, and the itinerary model/controller. |
-| [`lib/widgets/`](lib/widgets/) | Shared UI bits — message input and the optional A2UI source view. |
-
-### Domain & design
-
-| Directory | What it's for |
-| --- | --- |
-| [`lib/transit/`](lib/transit/) | Transit domain: line definitions, BART/511 departures client, catalog + rendering widgets, and the **BayHop design system** (`bayhop_tokens.dart` palette/typography, `bayhop_atoms.dart` reusable atoms). |
-| [`lib/location/`](lib/location/) | Geolocation, the Bay Area stop list, nearest-stop logic, the location snapshot model, and the OSM map background. |
-| [`lib/places/`](lib/places/) | Google Places client and result model used by Explore. |
-
-Platform scaffolding lives in `android/`, `ios/`, `macos/`, and `web/`. Planning notes are under `docs/`.
-
----
-
-## The catalogs (what the model can build)
-
-The model can only ever request widgets registered in a catalog. BayHop ships two:
-
-**Transit** (`lib/transit/transit_catalog.dart`)
-
-| Component | Renders |
-| --- | --- |
-| `TransitSummary` | A one-line headline for the answer (trip, departures, or status). |
-| `TransitJourney` | A featured route card: from→to, depart/arrive, duration, changes, fare, crowding, and ordered legs (ride / change / walk). |
-| `TransitLiveDepartures` | A live departure board backed by BART or 511 data. |
-| `TransitDepartures` | A planned departure board (estimates) when live data isn't available. |
-| `TransitAlert` | A delay / service-status card. |
-| `TransitNote` | A short caveat, warning, or planning-estimate disclaimer. |
-
-**Explore** (`lib/explore/explore_catalog.dart`)
-
-| Component | Renders |
-| --- | --- |
-| `ExploreSummary` | A headline for an exploration answer. |
-| `ExplorerOptionCard` | A branching idea (city, neighborhood, vibe, route) the user can tap to explore further. |
-| `ExplorePlaceSearch` | A Google Places-grounded venue lookup card. |
-| `ExploreNote` | A constraint, missing-location prompt, or uncertainty note. |
-
-Both build on `BasicCatalogItems` (text, columns, rows, buttons…) so the model can lay cards out freely.
+Start by editing the catalogs and prompts — you can reshape a lot of the experience without touching the plumbing.
 
 ---
 
-## Development
+## Testing & quality
 
-| Command | What it does |
-| --- | --- |
-| `flutter pub get` | Install dependencies from `pubspec.yaml`. |
-| `flutter analyze` | Static analysis with the repo's [`very_good_analysis`](https://pub.dev/packages/very_good_analysis) rules. Keep this **zero-issue**. |
-| `dart format .` | Format all Dart files. |
-| `flutter test` | Run the unit and widget test suite (`test/`, mirroring `lib/`). |
-| `flutter run -d <device> --dart-define-from-file=.env` | Run the app locally. |
+The project lints with [`very_good_analysis`](https://pub.dev/packages/very_good_analysis) and aims for a **zero-issue** analyze and a **green** test run.
 
-The quality bar for changes: `flutter analyze` clean and `flutter test` green. Tests use `flutter_test` for widgets/units and `mocktail` for mocks; transit, location, places, model, and explore logic are all covered without requiring live API calls.
+```sh
+flutter analyze        # static analysis (very_good_analysis rules)
+flutter test           # unit + widget tests (flutter_test + mocktail)
+dart format .          # format
+```
 
-Commit style follows the existing history — short, imperative subjects, occasionally with Conventional Commit prefixes (`feat:`, `fix:`, `docs:`). See [AGENTS.md](AGENTS.md) for the full contributor guide.
+Tests live in `test/`, mirroring the `lib/` structure. For GenUI behavior, cover prompt/catalog assumptions and model-client error paths without requiring a live API call.
 
 ---
 
-## Extending BayHop
+## Where to go next
 
-- **Teach the model a new card.** Add a component to the transit or explore catalog (define its schema + a `fromJson` builder), then mention it in the matching system prompt. Once it's in the catalog, the model can use it.
-- **Change the domain or personality.** Edit the system prompt strings — adjust geography, tone, or rules.
-- **Add a data source.** Follow the BART/511 client pattern in `lib/transit/` or the Places client in `lib/places/`, then surface the data through a catalog component.
-- **Swap the model.** Point `GenUiSession`'s `modelClientBuilder` at `GeminiModelClient`/`FeatherlessModelClient`, or write a new `ModelClient` subclass for any provider.
-- **Learn the framework.** See the [`genui` package](https://pub.dev/packages/genui) for the catalog API and the A2UI format.
+- **Teach the model new tricks.** Add a `CatalogItem` to `lib/catalog.dart` or one of the per-tab catalogs. Once it's registered, the model can use it.
+- **Change the personality or domain rules.** Edit `lib/prompt.dart` or `lib/explore/explore_prompt.dart`.
+- **Try a different model.** Supply the relevant key and pass `GeminiModelClient.new` / `FeatherlessModelClient.new` (or write your own `ModelClient`) to `GenUiSession`.
+- **Learn the framework.** See the [`genui` package on pub.dev](https://pub.dev/packages/genui) for the full catalog API and A2UI format.
 
 ---
 
-## Credits
+## Notes & limitations
 
-BayHop is built on the **GenUI Hackathon Starter**, developed with 💙 by [Very Good Ventures][very_good_ventures_link] 🦄.
+- The bundled BART key (`MW9S-E7SL-26DU-VV8V`) is BART's well-known **public demo key** — fine for local development, not for production traffic.
+- Map route geometry is **approximate** (built from hardcoded anchor points and station sequences), not from a routing API.
+- The map uses the public OpenStreetMap tile server; for anything beyond local development, review the [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/) and set a proper user agent.
+- Don't ship public web/mobile builds with secrets embedded via `--dart-define`. Use a server-side proxy for production access to keyed APIs (511, Places).
 
-Powered by [Inception Labs Mercury 2](https://docs.inceptionlabs.ai/), Flutter's [`genui`](https://pub.dev/packages/genui), OpenStreetMap via [`flutter_map`](https://pub.dev/packages/flutter_map), and [511 SF Bay](https://511.org/open-data) / BART / Google Places data.
+## Data & credits
 
-Licensed under the [MIT License](LICENSE).
+- Transit data: **BART API** and **511 SF Bay Open Data**.
+- Map tiles: **© OpenStreetMap contributors**.
+- Places: **Google Places API (New)**.
+
+---
+
+Built on the GenUI Hackathon Starter, developed with 💙 by [Very Good Ventures][very_good_ventures_link] 🦄
 
 [license_badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [license_link]: https://opensource.org/licenses/MIT

@@ -96,6 +96,9 @@ class GenUiSession {
   void sendMessage(String text) =>
       _conversation.sendRequest(ChatMessage.user(text));
 
+  /// Forwards a UI event into the live GenUI controller.
+  void handleUiEvent(UiEvent event) => _controller.handleUiEvent(event);
+
   /// Builds the text turn sent to the model from a conversation message.
   ///
   /// Typed messages carry their content as text. Messages from surface
