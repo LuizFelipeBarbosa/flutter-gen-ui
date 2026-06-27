@@ -202,19 +202,19 @@ class _HomePageState extends State<HomePage> {
                   placeOverlayListenable: placeOverlayController,
                 ),
               ),
-              PointerInterceptor(
-                intercepting: kIsWeb,
-                child: ScrollConfiguration(
-                  behavior: const _TransitSheetScrollBehavior(),
-                  child: DraggableScrollableSheet(
-                    controller: _sheetController,
-                    initialChildSize: _halfSize,
-                    minChildSize: _minSize,
-                    maxChildSize: _fullSize,
-                    snap: true,
-                    snapSizes: const [_minSize, _halfSize, _fullSize],
-                    builder: (context, scrollController) {
-                      return _BottomSheet(
+              ScrollConfiguration(
+                behavior: const _TransitSheetScrollBehavior(),
+                child: DraggableScrollableSheet(
+                  controller: _sheetController,
+                  initialChildSize: _halfSize,
+                  minChildSize: _minSize,
+                  maxChildSize: _fullSize,
+                  snap: true,
+                  snapSizes: const [_minSize, _halfSize, _fullSize],
+                  builder: (context, scrollController) {
+                    return PointerInterceptor(
+                      intercepting: kIsWeb,
+                      child: _BottomSheet(
                         scrollController: scrollController,
                         state: state,
                         surfaceId: surfaceId,
@@ -225,9 +225,9 @@ class _HomePageState extends State<HomePage> {
                         onJourneySelected: _handleJourneySelected,
                         onRouteSavedItinerary: _routeSavedItinerary,
                         onSuggestion: sendMessage,
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ),
               Positioned(

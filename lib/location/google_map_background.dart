@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:genui_template/location/google_maps_javascript_loader.dart';
 import 'package:genui_template/location/location_point.dart';
@@ -155,6 +156,11 @@ class _GoogleMapBackgroundState extends State<GoogleMapBackground> {
             mapToolbarEnabled: false,
             myLocationButtonEnabled: false,
             webGestureHandling: WebGestureHandling.greedy,
+            gestureRecognizers: const {
+              Factory<OneSequenceGestureRecognizer>(
+                EagerGestureRecognizer.new,
+              ),
+            },
             zoomControlsEnabled: false,
             compassEnabled: false,
             rotateGesturesEnabled: false,
