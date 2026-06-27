@@ -3,20 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:genui_template/conversation.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/explore/transit_route_handoff_controller.dart';
 import 'package:genui_template/location/location.dart';
 import 'package:genui_template/model/inception_model_client.dart';
-import 'package:genui_template/model/model_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
-import 'package:genui_template/transit/transit_route_geometry.dart';
-import 'package:genui_template/transit/transit_widgets.dart';
-
-typedef HomeModelClientBuilder =
-    ModelClient Function({
-      required String systemPrompt,
-    });
 
 const List<_Suggestion> _suggestions = [
   _Suggestion(
@@ -48,18 +38,10 @@ const List<_Suggestion> _suggestions = [
 class HomePage extends StatefulWidget {
   const HomePage({
     this.locationController,
-    this.itineraryController,
-    this.routeHandoffController,
-    this.onOpenExplore,
-    this.modelClientBuilder,
     super.key,
   });
 
   final UserLocationController? locationController;
-  final ItineraryController? itineraryController;
-  final TransitRouteHandoffController? routeHandoffController;
-  final ValueChanged<String>? onOpenExplore;
-  final HomeModelClientBuilder? modelClientBuilder;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -69,12 +51,9 @@ class _HomePageState extends State<HomePage> {
   late final GenUiSession _session;
   late final UserLocationController _locationController;
   late final bool _ownsLocationController;
-  late ActionDelegate _actionDelegate;
   final _textController = TextEditingController();
   final _sheetController = DraggableScrollableController();
-  final _routeOverlay = ValueNotifier<MapRouteOverlay?>(null);
   StreamSubscription<ConversationEvent>? _eventsSub;
-  int? _lastRouteHandoffId;
 
   static const double _minSize = 0.16;
   static const double _halfSize = 0.52;
@@ -87,13 +66,9 @@ class _HomePageState extends State<HomePage> {
     _locationController = widget.locationController ?? UserLocationController();
     _ownsLocationController = widget.locationController == null;
     if (_ownsLocationController) unawaited(_locationController.refresh());
-    _actionDelegate = _TransitActionDelegate(
-      onOpenExplore: widget.onOpenExplore,
-      itineraryController: widget.itineraryController,
-    );
     _session = GenUiSession(
-      modelClientBuilder: widget.modelClientBuilder ?? InceptionModelClient.new,
-      contextProvider: _contextForModel,
+      modelClientBuilder: InceptionModelClient.new,
+      contextProvider: _locationContextForModel,
     );
 
     _eventsSub = _session.events.listen((event) {
@@ -103,37 +78,14 @@ class _HomePageState extends State<HomePage> {
         );
       }
     });
-
-    widget.routeHandoffController?.addListener(_handleRouteHandoff);
-    _handleRouteHandoff();
-  }
-
-  @override
-  void didUpdateWidget(covariant HomePage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.itineraryController != widget.itineraryController ||
-        oldWidget.onOpenExplore != widget.onOpenExplore) {
-      _actionDelegate = _TransitActionDelegate(
-        onOpenExplore: widget.onOpenExplore,
-        itineraryController: widget.itineraryController,
-      );
-    }
-
-    if (oldWidget.routeHandoffController != widget.routeHandoffController) {
-      oldWidget.routeHandoffController?.removeListener(_handleRouteHandoff);
-      widget.routeHandoffController?.addListener(_handleRouteHandoff);
-      _handleRouteHandoff();
-    }
   }
 
   @override
   void dispose() {
     unawaited(_eventsSub?.cancel());
-    widget.routeHandoffController?.removeListener(_handleRouteHandoff);
     if (_ownsLocationController) _locationController.dispose();
     _textController.dispose();
     _sheetController.dispose();
-    _routeOverlay.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -142,39 +94,10 @@ class _HomePageState extends State<HomePage> {
     final request = text.trim();
     if (request.isEmpty) return;
 
-    _routeOverlay.value = null;
     _session.sendMessage(request);
     _textController.clear();
     FocusScope.of(context).unfocus();
     _expandSheet();
-  }
-
-  void _handleRouteHandoff() {
-    final handoff = widget.routeHandoffController?.value;
-    if (handoff == null || handoff.id == _lastRouteHandoffId) return;
-    _lastRouteHandoffId = handoff.id;
-
-    WidgetsBinding.instance
-      ..addPostFrameCallback((_) {
-        if (!mounted || _lastRouteHandoffId != handoff.id) return;
-        sendMessage(handoff.query);
-      })
-      ..scheduleFrame();
-  }
-
-  void _handleJourneySelected(TransitJourney journey) {
-    _routeOverlay.value = buildTransitJourneyRouteOverlay(
-      journey,
-      currentLocation: _locationController.value.fix?.coordinate,
-    );
-  }
-
-  void _routeSavedItinerary() {
-    final query = transitRouteRequestFor(
-      widget.itineraryController?.value ?? const [],
-    );
-    if (query == null) return;
-    sendMessage(query);
   }
 
   void _expandSheet() {
@@ -188,14 +111,6 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     }
-  }
-
-  String _contextForModel() {
-    return [
-      _locationContextForModel(),
-      widget.itineraryController?.toTransitPromptContext() ??
-          'Saved itinerary: unavailable.',
-    ].join(' ');
   }
 
   String _locationContextForModel() {
@@ -221,7 +136,6 @@ class _HomePageState extends State<HomePage> {
                 child: OsmMapBackground(
                   location: _locationController,
                   onRequestLocation: _locationController.refresh,
-                  routeOverlayListenable: _routeOverlay,
                 ),
               ),
               DraggableScrollableSheet(
@@ -238,10 +152,6 @@ class _HomePageState extends State<HomePage> {
                     surfaceId: surfaceId,
                     session: _session,
                     locationController: _locationController,
-                    itineraryController: widget.itineraryController,
-                    actionDelegate: _actionDelegate,
-                    onJourneySelected: _handleJourneySelected,
-                    onRouteSavedItinerary: _routeSavedItinerary,
                     onSuggestion: sendMessage,
                   );
                 },
@@ -273,10 +183,6 @@ class _BottomSheet extends StatelessWidget {
     required this.surfaceId,
     required this.session,
     required this.locationController,
-    required this.itineraryController,
-    required this.actionDelegate,
-    required this.onJourneySelected,
-    required this.onRouteSavedItinerary,
     required this.onSuggestion,
   });
 
@@ -285,10 +191,6 @@ class _BottomSheet extends StatelessWidget {
   final String? surfaceId;
   final GenUiSession session;
   final UserLocationController locationController;
-  final ItineraryController? itineraryController;
-  final ActionDelegate actionDelegate;
-  final ValueChanged<TransitJourney> onJourneySelected;
-  final VoidCallback onRouteSavedItinerary;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -334,22 +236,12 @@ class _BottomSheet extends StatelessWidget {
                 onSuggestion: onSuggestion,
               ),
             ),
-            if (itineraryController != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: _SavedItineraryPanel(
-                  controller: itineraryController!,
-                  onRoute: onRouteSavedItinerary,
-                ),
-              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
               child: _ResultArea(
                 state: state,
                 surfaceId: surfaceId,
                 session: session,
-                actionDelegate: actionDelegate,
-                onJourneySelected: onJourneySelected,
                 onSuggestion: onSuggestion,
               ),
             ),
@@ -377,107 +269,6 @@ class _DragHandle extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _SavedItineraryPanel extends StatelessWidget {
-  const _SavedItineraryPanel({
-    required this.controller,
-    required this.onRoute,
-  });
-
-  final ItineraryController controller;
-  final VoidCallback onRoute;
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<ItineraryStop>>(
-      valueListenable: controller,
-      builder: (context, stops, _) {
-        if (stops.isEmpty) return const SizedBox.shrink();
-
-        final first = stops.first;
-        final last = stops.last;
-        final routeLabel = stops.length == 1
-            ? first.title
-            : '${first.title} → ${last.title}';
-        final stopLabel = stops.length == 1
-            ? '1 saved stop'
-            : '${stops.length} saved stops';
-        final duration = stops.fold<int>(
-          0,
-          (total, stop) => total + stop.durationMinutes,
-        );
-
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: bayHopCardDecoration(radius: 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: BayHopColors.aiPurple.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: const Icon(
-                      Icons.bookmark_added_rounded,
-                      color: BayHopColors.aiPurple,
-                      size: 21,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Saved itinerary',
-                          style: BayHopText.body(
-                            size: 14.5,
-                            weight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          routeLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: BayHopText.body(
-                            size: 12.5,
-                            color: BayHopColors.muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  FilledButton.icon(
-                    onPressed: onRoute,
-                    icon: const Icon(Icons.alt_route_rounded, size: 18),
-                    label: const Text('Route'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  BayHopChip(label: stopLabel),
-                  BayHopChip(label: '$duration min planned'),
-                  if (first.category != null)
-                    BayHopChip(label: first.category!),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
@@ -644,16 +435,12 @@ class _ResultArea extends StatelessWidget {
     required this.state,
     required this.surfaceId,
     required this.session,
-    required this.actionDelegate,
-    required this.onJourneySelected,
     required this.onSuggestion,
   });
 
   final ConversationState state;
   final String? surfaceId;
   final GenUiSession session;
-  final ActionDelegate actionDelegate;
-  final ValueChanged<TransitJourney> onJourneySelected;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -663,13 +450,7 @@ class _ResultArea extends StatelessWidget {
     final id = surfaceId;
     if (id == null) return _IntroResult(onSuggestion: onSuggestion);
 
-    return TransitRouteSelectionScope(
-      onJourneySelected: onJourneySelected,
-      child: Surface(
-        surfaceContext: session.contextFor(id),
-        actionDelegate: actionDelegate,
-      ),
-    );
+    return Surface(surfaceContext: session.contextFor(id));
   }
 }
 
@@ -721,7 +502,6 @@ class _IntroResult extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _SuggestionTile(
-              key: ValueKey('intro-suggestion-${suggestion.query}'),
               suggestion: suggestion,
               onTap: () => onSuggestion(suggestion.query),
             ),
@@ -857,81 +637,79 @@ class _BayHopSearchBarState extends State<_BayHopSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    return TextFieldTapRegion(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          BayHopFrostedSurface(
-            borderRadius: const BorderRadius.all(Radius.circular(999)),
-            blur: 18,
-            opacity: 0.64,
-            borderOpacity: 0.75,
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x29121C26),
-                blurRadius: 20,
-                offset: Offset(0, 6),
-              ),
-              BoxShadow(
-                color: Color(0x1A121C26),
-                blurRadius: 3,
-                offset: Offset(0, 1),
-              ),
-            ],
-            child: SizedBox(
-              height: 54,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.search_rounded,
-                      size: 20,
-                      color: Color(0xFF4F585F),
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: _focus,
-                        enabled: !widget.isProcessing,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: _pick,
-                        style: BayHopText.body(size: 16),
-                        decoration: InputDecoration.collapsed(
-                          hintText: 'Search BART, Muni, Caltrain…',
-                          hintStyle: BayHopText.body(
-                            size: 16,
-                            color: BayHopColors.muted,
-                          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BayHopFrostedSurface(
+          borderRadius: const BorderRadius.all(Radius.circular(999)),
+          blur: 18,
+          opacity: 0.64,
+          borderOpacity: 0.75,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x29121C26),
+              blurRadius: 20,
+              offset: Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Color(0x1A121C26),
+              blurRadius: 3,
+              offset: Offset(0, 1),
+            ),
+          ],
+          child: SizedBox(
+            height: 54,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: Color(0xFF4F585F),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focus,
+                      enabled: !widget.isProcessing,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _pick,
+                      style: BayHopText.body(size: 16),
+                      decoration: InputDecoration.collapsed(
+                        hintText: 'Search BART, Muni, Caltrain…',
+                        hintStyle: BayHopText.body(
+                          size: 16,
+                          color: BayHopColors.muted,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE1E8ED),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        size: 22,
-                        color: Color(0xFF9BA7AF),
-                      ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE1E8ED),
+                      shape: BoxShape.circle,
                     ),
-                  ],
-                ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      size: 22,
+                      color: Color(0xFF9BA7AF),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          if (_focus.hasFocus) ...[
-            const SizedBox(height: 10),
-            _SearchSuggestions(onPick: _pick),
-          ],
+        ),
+        if (_focus.hasFocus) ...[
+          const SizedBox(height: 10),
+          _SearchSuggestions(onPick: _pick),
         ],
-      ),
+      ],
     );
   }
 }
@@ -971,7 +749,6 @@ class _SearchSuggestions extends StatelessWidget {
             ),
             for (final suggestion in _suggestions)
               _SuggestionTile(
-                key: ValueKey('search-suggestion-${suggestion.query}'),
                 suggestion: suggestion,
                 onTap: () => onPick(suggestion.query),
               ),
@@ -983,11 +760,7 @@ class _SearchSuggestions extends StatelessWidget {
 }
 
 class _SuggestionTile extends StatelessWidget {
-  const _SuggestionTile({
-    required this.suggestion,
-    required this.onTap,
-    super.key,
-  });
+  const _SuggestionTile({required this.suggestion, required this.onTap});
 
   final _Suggestion suggestion;
   final VoidCallback onTap;
@@ -1064,74 +837,4 @@ class _Suggestion {
   final IconData icon;
   final Color tint;
   final Color iconColor;
-}
-
-class _TransitActionDelegate implements ActionDelegate {
-  const _TransitActionDelegate({
-    required this.onOpenExplore,
-    required this.itineraryController,
-  });
-
-  final ValueChanged<String>? onOpenExplore;
-  final ItineraryController? itineraryController;
-
-  @override
-  bool handleEvent(
-    BuildContext context,
-    UiEvent event,
-    SurfaceContext genUiContext,
-    Widget Function(SurfaceDefinition, Catalog, String, DataContext)
-    buildWidget,
-  ) {
-    if (event is! UserActionEvent) return false;
-
-    switch (event.name) {
-      case 'open_explore':
-        final query = _actionString(event.context['query']);
-        if (query == null) return false;
-        onOpenExplore?.call(query);
-        return true;
-
-      case 'explore_place':
-        final title =
-            _actionString(event.context['displayName']) ??
-            _actionString(event.context['title']);
-        if (title == null) return false;
-        onOpenExplore?.call('Explore around $title');
-        return true;
-
-      case 'add_itinerary_stop':
-        final itinerary = itineraryController;
-        if (itinerary == null) return false;
-
-        final added = itinerary.addFromAction(
-          _itineraryContext(event.context),
-        );
-        final messenger = ScaffoldMessenger.maybeOf(context);
-        messenger?.showSnackBar(
-          SnackBar(
-            content: Text(
-              added ? 'Added to itinerary' : 'Already in itinerary',
-            ),
-          ),
-        );
-        return true;
-    }
-
-    return false;
-  }
-
-  String? _actionString(Object? value) {
-    final text = value?.toString().trim();
-    if (text == null || text.isEmpty) return null;
-    return text;
-  }
-
-  Map<String, Object?> _itineraryContext(JsonMap context) {
-    final place = context['place'];
-    if (place is Map) {
-      return place.map((key, value) => MapEntry(key.toString(), value));
-    }
-    return context;
-  }
 }

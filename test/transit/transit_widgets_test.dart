@@ -39,88 +39,6 @@ void main() {
     expect(find.textContaining('Arrive SFO'), findsOneWidget);
   });
 
-  testWidgets('TransitJourneyCard auto-selects recommended route', (
-    tester,
-  ) async {
-    TransitJourney? selectedJourney;
-
-    await tester.pumpWidget(
-      _TestApp(
-        child: TransitRouteSelectionScope(
-          onJourneySelected: (journey) => selectedJourney = journey,
-          child: TransitJourneyCard.fromJson(const {
-            'recommended': true,
-            'tag': 'Direct',
-            'from': 'Downtown Berkeley',
-            'to': 'SFO',
-            'depart': '9:05',
-            'arrive': '10:03',
-            'duration': 58,
-            'changes': 0,
-            'fare': '11.95',
-            'crowd': 'Some seats',
-            'legs': [
-              {
-                'type': 'ride',
-                'line': 'bart-red',
-                'from': 'Downtown Berkeley',
-                'to': 'SFO',
-                'mins': 58,
-                'stops': 18,
-              },
-            ],
-          }),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    expect(selectedJourney, isNotNull);
-    expect(selectedJourney!.to, 'SFO');
-  });
-
-  testWidgets('TransitJourneyCard selects route when tapped', (tester) async {
-    TransitJourney? selectedJourney;
-
-    await tester.pumpWidget(
-      _TestApp(
-        child: TransitRouteSelectionScope(
-          onJourneySelected: (journey) => selectedJourney = journey,
-          child: TransitJourneyCard.fromJson(const {
-            'recommended': false,
-            'tag': 'Direct',
-            'from': 'Downtown Berkeley',
-            'to': 'SFO',
-            'depart': '9:05',
-            'arrive': '10:03',
-            'duration': 58,
-            'changes': 0,
-            'fare': '11.95',
-            'crowd': 'Some seats',
-            'legs': [
-              {
-                'type': 'ride',
-                'line': 'bart-red',
-                'from': 'Downtown Berkeley',
-                'to': 'SFO',
-                'mins': 58,
-                'stops': 18,
-              },
-            ],
-          }),
-        ),
-      ),
-    );
-
-    expect(selectedJourney, isNull);
-
-    await tester.tap(find.byType(TransitJourneyCard));
-    await tester.pump();
-
-    expect(selectedJourney, isNotNull);
-    expect(selectedJourney!.from, 'Downtown Berkeley');
-  });
-
   testWidgets('TransitJourneyCard normalizes OAK connector leg only', (
     tester,
   ) async {
@@ -332,39 +250,6 @@ void main() {
     expect(find.text('Yellow Line'), findsOneWidget);
     expect(find.text('Minor delays'), findsOneWidget);
     expect(find.textContaining('10-minute delays'), findsOneWidget);
-  });
-
-  testWidgets('TransitExploreBranch dispatches open explore action', (
-    tester,
-  ) async {
-    String? actionName;
-    Map<String, Object?>? actionContext;
-
-    await tester.pumpWidget(
-      _TestApp(
-        child: TransitExploreBranch(
-          title: 'Explore near SFO',
-          subtitle: 'Food and coffee after arrival',
-          badge: 'Explore',
-          destination: 'SFO',
-          query: 'Explore places near SFO after taking BART',
-          onAction: (name, context) {
-            actionName = name;
-            actionContext = context;
-          },
-        ),
-      ),
-    );
-
-    await tester.tap(find.text('Explore near SFO'));
-    await tester.pump();
-
-    expect(actionName, 'open_explore');
-    expect(
-      actionContext?['query'],
-      'Explore places near SFO after taking BART',
-    );
-    expect(actionContext?['destination'], 'SFO');
   });
 }
 
