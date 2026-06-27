@@ -7,6 +7,8 @@ import 'package:genui_template/explore/transit_route_handoff_controller.dart';
 import 'package:genui_template/home_page.dart';
 import 'package:genui_template/location/location.dart';
 import 'package:genui_template/model/model_client.dart';
+import 'package:genui_template/transit/google_routes_transit_client.dart';
+import 'package:genui_template/transit/saved_itinerary_transit_planner.dart';
 
 void main() {
   group('HomePage suggestions', () {
@@ -94,6 +96,10 @@ void main() {
             child: HomePage(
               locationController: locationController,
               itineraryController: itinerary,
+              currentTime: _testNow,
+              transitPlanner: SavedItineraryTransitPlanner(
+                client: _FakeTransitRouteClient(),
+              ),
               modelClientBuilder: ({required systemPrompt}) {
                 return modelClient = _CapturingModelClient(
                   systemPrompt: systemPrompt,
@@ -118,6 +124,12 @@ void main() {
           modelClient.history.single.text,
           contains('Request: $routeRequest'),
         );
+        expect(
+          modelClient.history.single.text,
+          contains('Planner-backed route facts'),
+        );
+        expect(modelClient.history.single.text, contains('depart 9:30'));
+        expect(modelClient.history.single.text, contains('arrive 9:42'));
       },
     );
 
@@ -168,6 +180,10 @@ void main() {
             child: HomePage(
               locationController: locationController,
               itineraryController: itinerary,
+              currentTime: _testNow,
+              transitPlanner: SavedItineraryTransitPlanner(
+                client: _FakeTransitRouteClient(),
+              ),
               modelClientBuilder: ({required systemPrompt}) {
                 return modelClient = _CapturingModelClient(
                   systemPrompt: systemPrompt,
@@ -379,6 +395,10 @@ void main() {
           child: HomePage(
             locationController: locationController,
             routeHandoffController: handoffController,
+            currentTime: _testNow,
+            transitPlanner: SavedItineraryTransitPlanner(
+              client: _FakeTransitRouteClient(),
+            ),
             modelClientBuilder: ({required systemPrompt}) {
               return modelClient = _CapturingModelClient(
                 systemPrompt: systemPrompt,
@@ -390,7 +410,12 @@ void main() {
       await tester.pump();
 
       handoffController.routeItinerary(const [
-        ItineraryStop(localId: 'stop-1', title: 'Ferry Building'),
+        ItineraryStop(
+          localId: 'stop-1',
+          title: 'Ferry Building',
+          latitude: 37.795,
+          longitude: -122.393,
+        ),
       ]);
       await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
 
@@ -399,6 +424,10 @@ void main() {
         contains('Request: Route me to this saved itinerary stop'),
       );
       expect(modelClient.history.single.text, contains('Ferry Building'));
+      expect(
+        modelClient.history.single.text,
+        contains('Current location is unavailable'),
+      );
     });
   });
 }
@@ -430,14 +459,61 @@ const List<ItineraryStop> _savedItineraryStops = [
     title: 'Coffee',
     address: 'San Francisco, CA',
     durationMinutes: 30,
+    latitude: 37.776,
+    longitude: -122.408,
   ),
   ItineraryStop(
     localId: 'stop-2',
     title: 'Museum',
     address: 'San Francisco, CA',
     durationMinutes: 90,
+    latitude: 37.785,
+    longitude: -122.401,
   ),
 ];
+
+DateTime _testNow() => DateTime.parse('2026-06-27T09:00:00Z');
+
+class _FakeTransitRouteClient implements TransitRouteClient {
+  @override
+  Future<GoogleRoutesTransitJourney> fetchBestRoute({
+    required LocationCoordinate origin,
+    required LocationCoordinate destination,
+    DateTime? departureTime,
+    String originName = 'Origin',
+    String destinationName = 'Destination',
+    TransitRoutingPreference? routingPreference,
+  }) async {
+    final depart = departureTime ?? _testNow();
+    final arrive = depart.add(const Duration(minutes: 12));
+    return GoogleRoutesTransitJourney(
+      from: originName,
+      to: destinationName,
+      departClock: _clock(depart),
+      arriveClock: _clock(arrive),
+      durationMinutes: 12,
+      changes: 0,
+      fare: r'$2.75',
+      departureDateTime: depart,
+      arrivalDateTime: arrive,
+      legs: [
+        GoogleRoutesTransitLeg.ride(
+          durationMinutes: 12,
+          lineId: 'regional-transit',
+          from: originName,
+          to: destinationName,
+        ),
+      ],
+    );
+  }
+
+  @override
+  void close() {}
+}
+
+String _clock(DateTime time) {
+  return '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
+}
 
 Finder _idleAction(String actionKey) {
   return find.byKey(ValueKey('idle-action-$actionKey'));

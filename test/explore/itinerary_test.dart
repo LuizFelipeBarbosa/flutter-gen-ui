@@ -72,7 +72,10 @@ void main() {
         ['Coffee', 'Dinner', 'Museum'],
       );
       expect(controller.toPromptContext(), contains('Avoid duplicate stops'));
-      expect(controller.toPromptContext(), contains('Dinner | 75 min'));
+      expect(
+        controller.toPromptContext(),
+        contains('Dinner | 75 min visit time'),
+      );
 
       controller.remove(dinnerId);
       expect(
@@ -168,6 +171,10 @@ void main() {
       expect(
         controller.toTransitPromptContext(),
         contains('Saved itinerary stops in order'),
+      );
+      expect(
+        controller.toTransitPromptContext(),
+        contains('45 min visit time'),
       );
       expect(controller.toTransitPromptContext(), contains('coords 37.79550'));
       expect(

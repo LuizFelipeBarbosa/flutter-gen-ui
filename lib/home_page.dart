@@ -12,6 +12,8 @@ import 'package:genui_template/model/inception_model_client.dart';
 import 'package:genui_template/model/model_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
+import 'package:genui_template/transit/google_routes_transit_client.dart';
+import 'package:genui_template/transit/saved_itinerary_transit_planner.dart';
 import 'package:genui_template/transit/transit_route_geometry.dart';
 import 'package:genui_template/transit/transit_widgets.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
@@ -28,6 +30,8 @@ class HomePage extends StatefulWidget {
     this.routeHandoffController,
     this.onOpenExplore,
     this.modelClientBuilder,
+    this.transitPlanner,
+    this.currentTime,
     super.key,
   });
 
@@ -36,6 +40,8 @@ class HomePage extends StatefulWidget {
   final TransitRouteHandoffController? routeHandoffController;
   final ValueChanged<String>? onOpenExplore;
   final HomeModelClientBuilder? modelClientBuilder;
+  final SavedItineraryTransitPlanner? transitPlanner;
+  final DateTime Function()? currentTime;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -44,7 +50,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final GenUiSession _session;
   late final UserLocationController _locationController;
+  late final SavedItineraryTransitPlanner _transitPlanner;
   late final bool _ownsLocationController;
+  late final bool _ownsTransitPlanner;
   late ActionDelegate _actionDelegate;
   final _textController = TextEditingController();
   final _sheetController = DraggableScrollableController();
@@ -62,6 +70,10 @@ class _HomePageState extends State<HomePage> {
 
     _locationController = widget.locationController ?? UserLocationController();
     _ownsLocationController = widget.locationController == null;
+    _transitPlanner =
+        widget.transitPlanner ??
+        SavedItineraryTransitPlanner(client: GoogleRoutesTransitClient());
+    _ownsTransitPlanner = widget.transitPlanner == null;
     if (_ownsLocationController) unawaited(_locationController.refresh());
     _actionDelegate = _TransitActionDelegate(
       onOpenExplore: widget.onOpenExplore,
@@ -70,6 +82,7 @@ class _HomePageState extends State<HomePage> {
     _session = GenUiSession(
       modelClientBuilder: widget.modelClientBuilder ?? InceptionModelClient.new,
       contextProvider: _contextForModel,
+      currentTime: widget.currentTime,
     );
 
     _eventsSub = _session.events.listen((event) {
@@ -106,6 +119,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     unawaited(_eventsSub?.cancel());
     widget.routeHandoffController?.removeListener(_handleRouteHandoff);
+    if (_ownsTransitPlanner) _transitPlanner.close();
     if (_ownsLocationController) _locationController.dispose();
     _textController.dispose();
     _sheetController.dispose();
@@ -133,7 +147,12 @@ class _HomePageState extends State<HomePage> {
     WidgetsBinding.instance
       ..addPostFrameCallback((_) {
         if (!mounted || _lastRouteHandoffId != handoff.id) return;
-        sendMessage(handoff.query);
+        unawaited(
+          _sendSavedItineraryRoute(
+            handoff.stops,
+            fallbackQuery: handoff.query,
+          ),
+        );
       })
       ..scheduleFrame();
   }
@@ -146,11 +165,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _routeSavedItinerary() {
-    final query = transitRouteRequestFor(
-      widget.itineraryController?.value ?? const [],
+    unawaited(
+      _sendSavedItineraryRoute(
+        widget.itineraryController?.value ?? const [],
+      ),
     );
+  }
+
+  Future<void> _sendSavedItineraryRoute(
+    List<ItineraryStop> stops, {
+    String? fallbackQuery,
+  }) async {
+    final query = fallbackQuery ?? transitRouteRequestFor(stops);
     if (query == null) return;
-    sendMessage(query);
+
+    final plan = await _transitPlanner.plan(
+      stops: stops,
+      currentLocation: _locationController.value.fix?.coordinate,
+      departureTime: (widget.currentTime ?? DateTime.now)(),
+    );
+    if (!mounted) return;
+
+    sendMessage(_routeRequestWithPlannerFacts(query, plan));
   }
 
   void _expandSheet() {
@@ -178,6 +214,16 @@ class _HomePageState extends State<HomePage> {
     return _locationController.value.promptContext ??
         'User location snapshot: unavailable (location has not been shared). '
             "Do not infer the user's current station.";
+  }
+
+  String _routeRequestWithPlannerFacts(
+    String query,
+    SavedItineraryTransitPlan plan,
+  ) {
+    return '$query Planner-backed route facts: ${plan.toPromptContext()} '
+        'Use these planner-backed TransitJourney fields exactly when '
+        'available. '
+        'Do not estimate route times for unavailable segments.';
   }
 
   @override
@@ -242,6 +288,7 @@ class _HomePageState extends State<HomePage> {
                     locationController: _locationController,
                     itineraryController: widget.itineraryController,
                     onSend: sendMessage,
+                    onRouteSavedItinerary: _routeSavedItinerary,
                   ),
                 ),
               ),
@@ -341,6 +388,7 @@ class _BottomSheet extends StatelessWidget {
                 itineraryController: itineraryController,
                 actionDelegate: actionDelegate,
                 onJourneySelected: onJourneySelected,
+                onRouteSavedItinerary: onRouteSavedItinerary,
                 onSuggestion: onSuggestion,
               ),
             ),
@@ -643,6 +691,7 @@ class _ResultArea extends StatelessWidget {
     required this.itineraryController,
     required this.actionDelegate,
     required this.onJourneySelected,
+    required this.onRouteSavedItinerary,
     required this.onSuggestion,
   });
 
@@ -653,6 +702,7 @@ class _ResultArea extends StatelessWidget {
   final ItineraryController? itineraryController;
   final ActionDelegate actionDelegate;
   final ValueChanged<TransitJourney> onJourneySelected;
+  final VoidCallback onRouteSavedItinerary;
   final ValueChanged<String> onSuggestion;
 
   @override
@@ -667,7 +717,13 @@ class _ResultArea extends StatelessWidget {
         builder: (context, content) {
           return _TransitIdleResult(
             content: content,
-            onAction: onSuggestion,
+            onAction: (action) {
+              if (action.actionKey == 'route_saved_itinerary') {
+                onRouteSavedItinerary();
+                return;
+              }
+              onSuggestion(action.query);
+            },
           );
         },
       );
@@ -889,7 +945,7 @@ class _TransitIdleResult extends StatelessWidget {
   });
 
   final _TransitIdleContent content;
-  final ValueChanged<String> onAction;
+  final ValueChanged<_TransitIdleAction> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -942,7 +998,7 @@ class _TransitIdleResult extends StatelessWidget {
             child: _TransitIdleActionTile(
               key: ValueKey('idle-action-${action.actionKey}'),
               action: action,
-              onTap: () => onAction(action.query),
+              onTap: () => onAction(action),
             ),
           ),
       ],
@@ -1042,6 +1098,7 @@ class _BayHopSearchBar extends StatefulWidget {
     required this.locationController,
     required this.itineraryController,
     required this.onSend,
+    required this.onRouteSavedItinerary,
   });
 
   final TextEditingController controller;
@@ -1049,6 +1106,7 @@ class _BayHopSearchBar extends StatefulWidget {
   final UserLocationController locationController;
   final ItineraryController? itineraryController;
   final ValueChanged<String> onSend;
+  final VoidCallback onRouteSavedItinerary;
 
   @override
   State<_BayHopSearchBar> createState() => _BayHopSearchBarState();
@@ -1076,6 +1134,15 @@ class _BayHopSearchBarState extends State<_BayHopSearchBar> {
   void _pick(String query) {
     _focus.unfocus();
     widget.onSend(query);
+  }
+
+  void _pickAction(_TransitIdleAction action) {
+    _focus.unfocus();
+    if (action.actionKey == 'route_saved_itinerary') {
+      widget.onRouteSavedItinerary();
+      return;
+    }
+    widget.onSend(action.query);
   }
 
   @override
@@ -1107,11 +1174,7 @@ class _BayHopSearchBarState extends State<_BayHopSearchBar> {
                 padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.search_rounded,
-                      size: 20,
-                      color: Color(0xFF4F585F),
-                    ),
+                    const BayHopLogo(size: 23),
                     const SizedBox(width: 11),
                     Expanded(
                       child: TextField(
@@ -1154,7 +1217,7 @@ class _BayHopSearchBarState extends State<_BayHopSearchBar> {
             _SearchSuggestions(
               locationController: widget.locationController,
               itineraryController: widget.itineraryController,
-              onPick: _pick,
+              onPick: _pickAction,
             ),
           ],
         ],
@@ -1172,7 +1235,7 @@ class _SearchSuggestions extends StatelessWidget {
 
   final UserLocationController locationController;
   final ItineraryController? itineraryController;
-  final ValueChanged<String> onPick;
+  final ValueChanged<_TransitIdleAction> onPick;
 
   @override
   Widget build(BuildContext context) {
@@ -1195,22 +1258,32 @@ class _SearchSuggestions extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 9, 12, 6),
-                  child: Text(
-                    'TRY ASKING',
-                    style: BayHopText.body(
-                      size: 10.5,
-                      weight: FontWeight.w700,
-                      color: BayHopColors.faint,
-                      letterSpacing: 0.5,
-                    ),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                  child: Row(
+                    children: [
+                      const BayHopWordmark(
+                        markSize: 20,
+                        fontSize: 16,
+                        gap: 9,
+                      ),
+                      const Spacer(),
+                      Text(
+                        'TRY ASKING',
+                        style: BayHopText.body(
+                          size: 10.5,
+                          weight: FontWeight.w700,
+                          color: BayHopColors.faint,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 for (final action in content.actions)
                   _TransitIdleActionTile(
                     key: ValueKey('search-suggestion-${action.actionKey}'),
                     action: action,
-                    onTap: () => onPick(action.query),
+                    onTap: () => onPick(action),
                   ),
               ],
             ),

@@ -5,10 +5,12 @@ class TransitRouteHandoff {
   const TransitRouteHandoff({
     required this.id,
     required this.query,
+    required this.stops,
   });
 
   final int id;
   final String query;
+  final List<ItineraryStop> stops;
 }
 
 class TransitRouteHandoffController
@@ -20,7 +22,11 @@ class TransitRouteHandoffController
   void routeItinerary(List<ItineraryStop> stops) {
     final query = transitRouteRequestFor(stops);
     if (query == null) return;
-    value = TransitRouteHandoff(id: _nextId++, query: query);
+    value = TransitRouteHandoff(
+      id: _nextId++,
+      query: query,
+      stops: List.unmodifiable(stops),
+    );
   }
 }
 

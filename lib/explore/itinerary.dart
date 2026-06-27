@@ -140,7 +140,7 @@ class ItineraryStop {
       title,
       ?category,
       ?address,
-      '$durationMinutes min',
+      '$durationMinutes min visit time',
     ].join(' | ');
     return '$index. $details';
   }
@@ -154,7 +154,7 @@ class ItineraryStop {
       title,
       ?address,
       ?category,
-      '$durationMinutes min',
+      '$durationMinutes min visit time',
       ?coordinateLabel,
     ].join(' | ');
     return '$index. $details';

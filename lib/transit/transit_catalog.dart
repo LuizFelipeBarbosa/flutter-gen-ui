@@ -120,6 +120,9 @@ final CatalogItem transitDeparturesItem = CatalogItem(
     properties: {
       'station': S.string(description: 'Station name.'),
       'live': S.boolean(description: 'Whether these departures are live.'),
+      'statusLabel': S.string(
+        description: 'Optional board status chip, e.g. Expected or Planned.',
+      ),
       'list': S.list(
         description: 'Departures sorted by soonest first.',
         items: _departureSchema,
@@ -379,6 +382,17 @@ final Schema _departureSchema = S.object(
     'plat': S.string(description: 'Optional platform.'),
     'mins': S.integer(description: 'Minutes until departure.'),
     'live': S.boolean(description: 'Whether this entry is live.'),
+    'serviceTime': S.string(
+      description: 'Optional ISO 8601 absolute departure or arrival time.',
+    ),
+    'serviceTimeKind': S.string(
+      description:
+          'Optional source field for serviceTime, e.g. ExpectedDepartureTime.',
+    ),
+    'timeStatusLabel': S.string(
+      description:
+          'Optional time label, e.g. Expected, Scheduled, or BART estimate.',
+    ),
     'lineLabel': S.string(description: 'Optional route label from live data.'),
     'operatorName': S.string(description: 'Optional operator name.'),
     'operatorId': S.string(description: 'Optional operator id.'),

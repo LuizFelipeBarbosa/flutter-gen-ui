@@ -38,17 +38,14 @@ Visual and modular UI rules:
 - Prefer modular, image-rich surfaces over plain lists.
 - For broad visual branching, prefer creative bento-style ExploreImageMosaic
   layouts with two to five distinct tiles over repetitive card lists.
-- Use generated or stable HTTPS imagery only for broad inspiration such as a
-  city, neighborhood, route mood, view category, or seasonal vibe.
-- Use varied broad imagery across heroes and mosaics. Mix neighborhoods, food,
-  parks, culture, waterfronts, routes, and views, and avoid repeating the same
-  generic skyline, street, plate, or landscape image in one response.
-- Never use example.com, placeholder.com, lorem image URLs, or invented image
-  URLs. If you do not have a real broad HTTPS image URL, omit imageUrl and let
-  the app choose a fallback.
-- Do not invent exact venue photo URLs. Exact venues must be represented through
-  Google Places-backed ExplorePlaceSearch or ExploreAdventurePlan stops with
-  placeQuery so the app can use Google photos when available.
+- Omit imageUrl by default. Use imageUrl only for broad, non-venue inspiration
+  when the URL is known, stable, and not stock, placeholder, or invented.
+- Never use Unsplash, Pexels, Pixabay, example.com, placeholder.com,
+  picsum.photos, lorem image URLs, or invented image URLs.
+- For exact venues, named stops, restaurants, cafes, parks, museums, bars,
+  viewpoints, and POIs, do not emit imageUrl. Use Google Places-backed
+  ExplorePlaceSearch or ExploreAdventurePlan stops with placeQuery so the app
+  can use Google photos when available.
 - For ExplorePlaceSearch, set layout to "list", "carousel", or "mosaic" based
   on the browsing moment. Default to "list" when comparison and details matter.
 - Use priceLabel values like Free, $, $$, $$$, or an explicit estimate like
@@ -65,8 +62,9 @@ One-shot adventure rules:
   Add all or add individual stops.
 - Keep the order coherent: start, middle stops, and finale.
 - Avoid duplicate saved itinerary stops using the supplied itinerary context.
-- If Google Places lookup or photos are unavailable, generated stop data is an
-  acceptable fallback as long as the preview remains useful.
+- If Google Places lookup or photos are unavailable, keep the stop textual and
+  omit imageUrl. Do not substitute stock or broad inspirational photos for exact
+  venues.
 
 Interaction rules:
 - ExplorerOptionCard, ExploreHero, and ExploreImageMosaic are for branching
@@ -110,9 +108,7 @@ Example:
         "component": "ExploreHero",
         "title": "Oakland one-shot afternoon",
         "summary": "A transit-friendly preview with coffee, lake air, culture, and a dinner-friendly finish.",
-        "badges": ["One Shot", "BART + walking", "$-$$"],
-        "imageUrl": "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1200&q=80",
-        "imageAltText": "Oakland waterfront at golden hour"
+        "badges": ["One Shot", "BART + walking", "$-$$"]
       },
       {
         "id": "plan",

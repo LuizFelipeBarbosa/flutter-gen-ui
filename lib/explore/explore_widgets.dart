@@ -226,10 +226,10 @@ class ExploreImageMosaic extends StatelessWidget {
     return ExploreImageMosaic(
       title: _nullableString(json['title']),
       summary: _nullableString(json['summary']),
-      tiles: [
+      tiles: _dedupeMosaicImages([
         for (final item in _jsonMapList(json['images']))
           ExploreMosaicImage.fromJson(item),
-      ].take(5).toList(growable: false),
+      ]).take(5).toList(growable: false),
       onAction: (name, actionContext) {
         context.dispatchEvent(
           UserActionEvent(
@@ -249,7 +249,10 @@ class ExploreImageMosaic extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (tiles.isEmpty) return const SizedBox.shrink();
+    final visibleTiles = _dedupeMosaicImages(
+      tiles,
+    ).take(5).toList(growable: false);
+    if (visibleTiles.isEmpty) return const SizedBox.shrink();
 
     return Container(
       width: double.infinity,
@@ -279,7 +282,7 @@ class ExploreImageMosaic extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               return _ExploreImageBentoLayout(
-                tiles: tiles,
+                tiles: visibleTiles,
                 maxWidth: constraints.maxWidth,
                 onAction: onAction,
               );
@@ -350,7 +353,7 @@ class _ExploreImageBentoLayout extends StatelessWidget {
 
 class ExploreMosaicImage {
   const ExploreMosaicImage({
-    required this.imageUrl,
+    this.imageUrl,
     this.title,
     this.badge,
     this.imageAltText,
@@ -360,7 +363,7 @@ class ExploreMosaicImage {
 
   factory ExploreMosaicImage.fromJson(JsonMap json) {
     return ExploreMosaicImage(
-      imageUrl: _string(json['imageUrl']),
+      imageUrl: _nullableString(json['imageUrl']),
       title: _nullableString(json['title']),
       badge: _nullableString(json['badge']),
       imageAltText: _nullableString(json['imageAltText']),
@@ -369,7 +372,7 @@ class ExploreMosaicImage {
     );
   }
 
-  final String imageUrl;
+  final String? imageUrl;
   final String? title;
   final String? badge;
   final String? imageAltText;
@@ -668,10 +671,10 @@ class ExploreAdventurePlan extends StatefulWidget {
       priceLabel: _nullableString(json['priceLabel']),
       transitHint: _nullableString(json['transitHint']),
       addAllLabel: _string(json['addAllLabel'], 'Add all'),
-      stops: [
+      stops: _dedupeAdventureStops([
         for (final item in _jsonMapList(json['stops']))
           ExploreAdventureStop.fromJson(item),
-      ].take(5).toList(growable: false),
+      ]).take(5).toList(growable: false),
       onAction: (name, actionContext) {
         context.dispatchEvent(
           UserActionEvent(
@@ -987,7 +990,6 @@ class _AdventureStopTile extends StatelessWidget {
       ?stop.transitHint,
     ];
     final photoUri = enrichment?.photoUri;
-    final imageUrl = stop.imageUrl;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1002,14 +1004,7 @@ class _AdventureStopTile extends StatelessWidget {
           _AdventureStopVisual(
             index: index,
             photoUri: photoUri,
-            imageUrl: imageUrl,
             imageAltText: stop.imageAltText,
-            fallbackImageUrl: _fallbackImageUrlFor([
-              title,
-              stop.category,
-              stop.description,
-              stop.transitHint,
-            ]),
           ),
           const SizedBox(width: 11),
           Expanded(
@@ -1081,21 +1076,17 @@ class _AdventureStopTile extends StatelessWidget {
 class _AdventureStopVisual extends StatelessWidget {
   const _AdventureStopVisual({
     required this.index,
-    required this.fallbackImageUrl,
     this.photoUri,
-    this.imageUrl,
     this.imageAltText,
   });
 
   final int index;
   final Uri? photoUri;
-  final String? imageUrl;
   final String? imageAltText;
-  final String fallbackImageUrl;
 
   @override
   Widget build(BuildContext context) {
-    final networkImage = photoUri?.toString() ?? imageUrl;
+    final networkImage = photoUri?.toString();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
@@ -1107,7 +1098,7 @@ class _AdventureStopVisual extends StatelessWidget {
           children: [
             _ExploreNetworkImage(
               imageUrl: networkImage,
-              fallbackImageUrl: fallbackImageUrl,
+              fallbackImageUrl: null,
               semanticLabel: imageAltText,
               fallbackIcon: Icons.place_rounded,
             ),
@@ -1331,7 +1322,7 @@ class _ExplorerOptionVisual extends StatelessWidget {
 
   final String? imageUrl;
   final String? imageAltText;
-  final String fallbackImageUrl;
+  final String? fallbackImageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1380,27 +1371,36 @@ class _ExploreNetworkImage extends StatelessWidget {
   });
 
   final String? imageUrl;
-  final String fallbackImageUrl;
+  final String? fallbackImageUrl;
   final IconData fallbackIcon;
   final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    final primaryUrl = _usableImageUrl(imageUrl) ?? fallbackImageUrl;
-    return _networkImage(
-      primaryUrl,
-      allowFallback: primaryUrl != fallbackImageUrl,
-    );
+    final primaryUrl = _usableImageUrl(imageUrl);
+    if (primaryUrl != null) {
+      return _networkImage(
+        primaryUrl,
+        fallbackUrl: _usableImageUrl(fallbackImageUrl),
+      );
+    }
+
+    final fallbackUrl = _usableImageUrl(fallbackImageUrl);
+    if (fallbackUrl != null) {
+      return _networkImage(fallbackUrl);
+    }
+
+    return _ExploreVisualFallback(icon: fallbackIcon);
   }
 
-  Widget _networkImage(String url, {required bool allowFallback}) {
+  Widget _networkImage(String url, {String? fallbackUrl}) {
     return Image.network(
       url,
       fit: BoxFit.cover,
       semanticLabel: semanticLabel,
       errorBuilder: (_, _, _) {
-        if (allowFallback) {
-          return _networkImage(fallbackImageUrl, allowFallback: false);
+        if (fallbackUrl != null && fallbackUrl != url) {
+          return _networkImage(fallbackUrl);
         }
         return _ExploreVisualFallback(icon: fallbackIcon);
       },
@@ -1510,7 +1510,7 @@ class _ExplorePlaceSearchState extends State<ExplorePlaceSearch> {
     });
 
     try {
-      final results = await _search();
+      final results = _dedupePlaceResults(await _search());
       if (!mounted || _searchKey(widget) != key) return;
       setState(() {
         _results = results;
@@ -1878,12 +1878,6 @@ class _PlaceResultMosaicCard extends StatelessWidget {
       ...card.metadata,
       ...card.tags,
     ];
-    final fallbackImageUrl = _fallbackImageUrlFor([
-      card.title,
-      card.subtitle,
-      ...card.metadata,
-      ...card.tags,
-    ]);
     final tile = Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1928,7 +1922,7 @@ class _PlaceResultMosaicCard extends StatelessWidget {
                 children: [
                   _ExploreNetworkImage(
                     imageUrl: photoUri?.toString(),
-                    fallbackImageUrl: fallbackImageUrl,
+                    fallbackImageUrl: null,
                     semanticLabel: card.title,
                     fallbackIcon: Icons.place_rounded,
                   ),
@@ -2139,13 +2133,11 @@ class _PlaceResultCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (photoUri != null) ...[
-                _PlacePhotoThumbnail(
-                  uri: photoUri!,
-                  attributionLabel: card.photoAttributionLabel,
-                ),
-                const SizedBox(width: 10),
-              ],
+              _PlacePhotoThumbnail(
+                uri: photoUri,
+                attributionLabel: card.photoAttributionLabel,
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: InkWell(
                   borderRadius: BorderRadius.circular(10),
@@ -2208,11 +2200,13 @@ class _PlacePhotoThumbnail extends StatelessWidget {
     required this.attributionLabel,
   });
 
-  final Uri uri;
+  final Uri? uri;
   final String? attributionLabel;
 
   @override
   Widget build(BuildContext context) {
+    final photoUri = uri;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
@@ -2221,14 +2215,19 @@ class _PlacePhotoThumbnail extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(
-              uri.toString(),
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) {
-                return const _ExploreVisualFallback(icon: Icons.place_rounded);
-              },
-            ),
-            if (attributionLabel != null)
+            if (photoUri == null)
+              const _ExploreVisualFallback(icon: Icons.place_rounded)
+            else
+              Image.network(
+                photoUri.toString(),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) {
+                  return const _ExploreVisualFallback(
+                    icon: Icons.place_rounded,
+                  );
+                },
+              ),
+            if (photoUri != null && attributionLabel != null)
               Align(
                 alignment: Alignment.bottomLeft,
                 child: DecoratedBox(
@@ -2391,7 +2390,100 @@ String _adventureKey(List<ExploreAdventureStop> stops) {
       .join(';;');
 }
 
-String _fallbackImageUrlFor(Iterable<String?> cues) {
+List<PlaceResult> _dedupePlaceResults(Iterable<PlaceResult> results) {
+  return _dedupeByKeys(results, _placeResultKeys);
+}
+
+List<ExploreAdventureStop> _dedupeAdventureStops(
+  Iterable<ExploreAdventureStop> stops,
+) {
+  return _dedupeByKeys(stops, _adventureStopKeys);
+}
+
+List<ExploreMosaicImage> _dedupeMosaicImages(
+  Iterable<ExploreMosaicImage> images,
+) {
+  return _dedupeByKeys(images, _mosaicImageKeys);
+}
+
+List<T> _dedupeByKeys<T>(
+  Iterable<T> items,
+  Iterable<String> Function(T item) keysFor,
+) {
+  final seen = <String>{};
+  final unique = <T>[];
+
+  for (final item in items) {
+    final keys = keysFor(item).toList(growable: false);
+    if (keys.isNotEmpty && keys.any(seen.contains)) continue;
+
+    unique.add(item);
+    seen.addAll(keys);
+  }
+
+  return unique;
+}
+
+Iterable<String> _placeResultKeys(PlaceResult place) sync* {
+  final id = _normalizeDedupeText(place.id);
+  if (id != null) yield 'place:$id';
+
+  yield* _titleAddressKeys(
+    title: place.displayName,
+    address: place.formattedAddress,
+    prefix: 'place-text',
+  );
+}
+
+Iterable<String> _adventureStopKeys(ExploreAdventureStop stop) sync* {
+  final placeId = _normalizeDedupeText(stop.placeId);
+  if (placeId != null) yield 'place:$placeId';
+
+  final placeQuery = _normalizeDedupeText(stop.placeQuery);
+  if (placeQuery != null) yield 'query:$placeQuery';
+
+  yield* _titleAddressKeys(
+    title: stop.title,
+    address: stop.address,
+    prefix: 'adventure-text',
+  );
+}
+
+Iterable<String> _mosaicImageKeys(ExploreMosaicImage image) sync* {
+  final query = _normalizeDedupeText(image.query);
+  if (query != null) yield 'query:$query';
+
+  final title = _normalizeDedupeText(image.title);
+  if (title != null) yield 'title:$title';
+}
+
+Iterable<String> _titleAddressKeys({
+  required String? title,
+  required String? address,
+  required String prefix,
+}) sync* {
+  final normalizedTitle = _normalizeDedupeText(title);
+  if (normalizedTitle == null) return;
+
+  final normalizedAddress = _normalizeDedupeText(address);
+  if (normalizedAddress == null) {
+    yield '$prefix:$normalizedTitle';
+    return;
+  }
+
+  yield '$prefix:$normalizedTitle|$normalizedAddress';
+}
+
+String? _normalizeDedupeText(String? value) {
+  final normalized = value?.trim().toLowerCase().replaceAll(
+    RegExp(r'\s+'),
+    ' ',
+  );
+  if (normalized == null || normalized.isEmpty) return null;
+  return normalized;
+}
+
+String? _fallbackImageUrlFor(Iterable<String?> cues) {
   return fallbackExploreImageUrlFor(cues);
 }
 

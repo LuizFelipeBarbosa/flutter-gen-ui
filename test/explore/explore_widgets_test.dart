@@ -37,6 +37,60 @@ void main() {
     }
   }
 
+  testWidgets('broad image widgets ignore stock image URLs', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExploreHero(
+            title: 'Waterfront afternoon',
+            summary: 'A broad branch without a grounded image.',
+            imageUrl:
+                'https://images.unsplash.com/photo-1501594907352-04cda38ebc29',
+            onAction: (_, _) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(Image), findsNothing);
+    expect(find.byIcon(Icons.travel_explore_rounded), findsOneWidget);
+  });
+
+  testWidgets('image mosaic filters duplicate generated tiles', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: ExploreImageMosaic(
+              tiles: const [
+                ExploreMosaicImage(
+                  title: 'Coffee crawl',
+                  query: 'Find coffee near BART',
+                ),
+                ExploreMosaicImage(
+                  title: 'Duplicate coffee',
+                  query: 'Find coffee near BART',
+                ),
+                ExploreMosaicImage(
+                  title: 'Museum stop',
+                  query: 'Find a museum near BART',
+                ),
+              ],
+              onAction: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Coffee crawl'), findsOneWidget);
+    expect(find.text('Duplicate coffee'), findsNothing);
+    expect(find.text('Museum stop'), findsOneWidget);
+  });
+
   testWidgets('places carousel fits dense metadata without overflow', (
     tester,
   ) async {
@@ -74,6 +128,76 @@ void main() {
       overlayController.searchResultMarkers.map((marker) => marker.label),
       containsAll(['Place with lots of metadata', 'Another dense place']),
     );
+  });
+
+  testWidgets('places list dedupes results before publishing markers', (
+    tester,
+  ) async {
+    final overlayController = MapPlaceOverlayController();
+    addTearDown(overlayController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MapPlaceOverlayScope(
+          controller: overlayController,
+          child: Scaffold(
+            body: SizedBox(
+              width: 360,
+              child: ExplorePlaceSearch(
+                title: 'Duplicate places',
+                query: 'duplicate places',
+                client: _DuplicatePlacesClient(),
+                onAction: (_, _) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Duplicate Cafe'), findsOneWidget);
+    expect(find.text('Second Place'), findsOneWidget);
+    expect(overlayController.searchResultMarkers, hasLength(2));
+    expect(
+      overlayController.searchResultMarkers.map((marker) => marker.label),
+      ['Duplicate Cafe', 'Second Place'],
+    );
+  });
+
+  testWidgets('places cards use Google photos without stock fallback images', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            child: ExplorePlaceSearch(
+              title: 'Photo places',
+              query: 'photo places',
+              client: _PhotoPlacesClient(),
+              onAction: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final imageFinder = find.byType(Image);
+    expect(imageFinder, findsOneWidget);
+
+    final image = tester.widget<Image>(imageFinder);
+    final provider = image.image;
+
+    expect(provider, isA<NetworkImage>());
+    expect((provider as NetworkImage).url, contains('/media'));
+    expect(find.text('Photo Place'), findsOneWidget);
+    expect(find.text('No Photo Place'), findsOneWidget);
   });
 
   for (final width in [360.0, 760.0]) {
@@ -172,6 +296,94 @@ class _FakePlacesClient extends GooglePlacesClient {
         displayName: 'Unmapped place',
         formattedAddress: 'No exact coordinate',
         types: ['point_of_interest'],
+      ),
+    ];
+  }
+}
+
+class _DuplicatePlacesClient extends GooglePlacesClient {
+  _DuplicatePlacesClient() : super(apiKey: 'test-key');
+
+  @override
+  Future<List<PlaceResult>> searchText({
+    required String query,
+    int maxResultCount = 10,
+    PlaceSearchCircle? locationBias,
+    String? includedType,
+    String? languageCode,
+    String? regionCode,
+    bool? openNow,
+  }) async {
+    return const [
+      PlaceResult(
+        id: 'duplicate-1',
+        displayName: 'Duplicate Cafe',
+        formattedAddress: '1 Market Street, San Francisco, CA',
+        latitude: 37.775,
+        longitude: -122.419,
+        types: ['cafe'],
+      ),
+      PlaceResult(
+        id: 'duplicate-1',
+        displayName: 'Duplicate Cafe Updated',
+        formattedAddress: '1 Market Street, San Francisco, CA',
+        latitude: 37.776,
+        longitude: -122.42,
+        types: ['cafe'],
+      ),
+      PlaceResult(
+        id: 'duplicate-2',
+        displayName: 'Duplicate Cafe',
+        formattedAddress: '1 Market Street, San Francisco, CA',
+        latitude: 37.777,
+        longitude: -122.421,
+        types: ['cafe'],
+      ),
+      PlaceResult(
+        id: 'second-place',
+        displayName: 'Second Place',
+        formattedAddress: '2 Market Street, San Francisco, CA',
+        latitude: 37.778,
+        longitude: -122.422,
+        types: ['museum'],
+      ),
+    ];
+  }
+}
+
+class _PhotoPlacesClient extends GooglePlacesClient {
+  _PhotoPlacesClient() : super(apiKey: 'test-key');
+
+  @override
+  Future<List<PlaceResult>> searchText({
+    required String query,
+    int maxResultCount = 10,
+    PlaceSearchCircle? locationBias,
+    String? includedType,
+    String? languageCode,
+    String? regionCode,
+    bool? openNow,
+  }) async {
+    return const [
+      PlaceResult(
+        id: 'photo-place',
+        displayName: 'Photo Place',
+        formattedAddress: '3 Market Street, San Francisco, CA',
+        types: ['tourist_attraction'],
+        photos: [
+          PlacePhoto(
+            name: 'places/photo-place/photos/photo-1',
+            authorAttributions: [
+              PlacePhotoAttribution(displayName: 'A Photographer'),
+            ],
+          ),
+        ],
+      ),
+      PlaceResult(
+        id: 'no-photo-place',
+        displayName: 'No Photo Place',
+        formattedAddress: '4 Market Street, San Francisco, CA',
+        types: ['park'],
       ),
     ];
   }

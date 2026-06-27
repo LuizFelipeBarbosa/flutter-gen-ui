@@ -139,6 +139,106 @@ void main() {
       },
     );
 
+    test(
+      'preserves 511 time precedence, timezone offsets, and clamped minutes',
+      () async {
+        final client = LiveDeparturesClient(
+          key511: 'test-511-key',
+          now: () => DateTime.parse('2026-06-26T12:00:30Z'),
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/transit/StopMonitoring') {
+              return _jsonResponse(
+                _siri([
+                  _visit(
+                    line: 'N',
+                    publishedLine: 'N',
+                    destination: 'Expected departure wins',
+                    stopName: 'Embarcadero Station',
+                    expectedDeparture: '2026-06-26T12:06:00Z',
+                    expectedArrival: '2026-06-26T12:01:00Z',
+                    aimedDeparture: '2026-06-26T12:02:00Z',
+                    aimedArrival: '2026-06-26T12:03:00Z',
+                  ),
+                  _visit(
+                    line: 'K',
+                    publishedLine: 'K',
+                    destination: 'Expected arrival wins',
+                    stopName: 'Embarcadero Station',
+                    expectedArrival: '2026-06-26T05:02:00-07:00',
+                    aimedDeparture: '2026-06-26T12:04:00Z',
+                  ),
+                  _visit(
+                    line: 'M',
+                    publishedLine: 'M',
+                    destination: 'Aimed departure wins',
+                    stopName: 'Embarcadero Station',
+                    aimedDeparture: '2026-06-26T12:08:00Z',
+                    aimedArrival: '2026-06-26T12:05:00Z',
+                  ),
+                  _visit(
+                    line: 'T',
+                    publishedLine: 'T',
+                    destination: 'Past aimed arrival clamps',
+                    stopName: 'Embarcadero Station',
+                    aimedArrival: '2026-06-26T04:59:00-07:00',
+                  ),
+                ]),
+              );
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+
+        final board = await client.fetch511Departures(
+          agency: 'SF',
+          stopCode: '15184',
+        );
+
+        expect(board.fetchedAt, DateTime.parse('2026-06-26T12:00:30Z'));
+
+        final departuresByDestination = {
+          for (final departure in board.departures)
+            departure.destination: departure,
+        };
+        final expectedDeparture =
+            departuresByDestination['Expected departure wins']!;
+        expect(expectedDeparture.minutes, 6);
+        expect(expectedDeparture.serviceTimeKind, 'ExpectedDepartureTime');
+        expect(expectedDeparture.timeStatusLabel, 'Expected');
+        expect(
+          expectedDeparture.serviceTime,
+          DateTime.parse('2026-06-26T12:06:00Z'),
+        );
+
+        final expectedArrival =
+            departuresByDestination['Expected arrival wins']!;
+        expect(expectedArrival.minutes, 2);
+        expect(expectedArrival.serviceTimeKind, 'ExpectedArrivalTime');
+        expect(expectedArrival.timeStatusLabel, 'Expected');
+        expect(
+          expectedArrival.serviceTime!.isAtSameMomentAs(
+            DateTime.parse('2026-06-26T12:02:00Z'),
+          ),
+          isTrue,
+        );
+
+        final aimedDeparture = departuresByDestination['Aimed departure wins']!;
+        expect(aimedDeparture.minutes, 8);
+        expect(aimedDeparture.serviceTimeKind, 'AimedDepartureTime');
+        expect(aimedDeparture.timeStatusLabel, 'Scheduled');
+        expect(
+          aimedDeparture.serviceTime,
+          DateTime.parse('2026-06-26T12:08:00Z'),
+        );
+
+        final pastAimedArrival =
+            departuresByDestination['Past aimed arrival clamps']!;
+        expect(pastAimedArrival.minutes, 0);
+        expect(pastAimedArrival.serviceTimeKind, 'AimedArrivalTime');
+        expect(pastAimedArrival.timeStatusLabel, 'Scheduled');
+      },
+    );
+
     test('uses local Muni stop codes for 4th and King', () async {
       final requests = <Uri>[];
       final client = LiveDeparturesClient(
@@ -390,12 +490,14 @@ Map<String, Object?> _visit({
   String? expectedDeparture,
   String? expectedArrival,
   String? aimedDeparture,
+  String? aimedArrival,
 }) {
   final call = <String, Object?>{
     'StopPointName': stopName,
     'ExpectedDepartureTime': expectedDeparture,
     'ExpectedArrivalTime': expectedArrival,
     'AimedDepartureTime': aimedDeparture,
+    'AimedArrivalTime': aimedArrival,
   }..removeWhere((_, value) => value == null);
 
   return {

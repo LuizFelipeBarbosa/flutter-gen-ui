@@ -39,8 +39,10 @@ void main() {
     expect(first!.query, contains('Route this saved itinerary in order'));
     expect(first.query, contains('Coffee'));
     expect(first.query, contains('eligible Google Maps POI markers'));
+    expect(first.stops, stops);
     expect(second, isNotNull);
     expect(second!.id, isNot(first.id));
+    expect(second.stops, stops);
   });
 
   test('transitRouteRequestFor returns null for empty itineraries', () {

@@ -164,10 +164,76 @@ void main() {
       ),
     );
 
-    expect(find.text('58'), findsOneWidget);
-    expect(find.text('11:12 → 12:10'), findsOneWidget);
+    expect(find.text('38'), findsOneWidget);
+    expect(find.text('11:12 → 11:50'), findsOneWidget);
     expect(find.textContaining('Arrive Oakland Airport'), findsOneWidget);
     expect(find.textContaining('1 stops · 9 min'), findsOneWidget);
+  });
+
+  testWidgets('TransitJourneyCard computes arrival from leg minutes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitJourneyCard.fromJson(const {
+          'recommended': true,
+          'tag': 'Direct',
+          'from': 'Downtown Berkeley',
+          'to': 'SFO',
+          'depart': '9:05',
+          'arrive': '9:25',
+          'duration': 20,
+          'changes': 0,
+          'fare': '11.95',
+          'crowd': 'Some seats',
+          'legs': [
+            {
+              'type': 'ride',
+              'line': 'bart-red',
+              'from': 'Downtown Berkeley',
+              'to': 'SFO',
+              'mins': 58,
+              'stops': 18,
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(find.text('58'), findsOneWidget);
+    expect(find.text('9:05 → 10:03'), findsOneWidget);
+  });
+
+  testWidgets('TransitJourneyCard wraps computed arrival after midnight', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitJourneyCard.fromJson(const {
+          'recommended': true,
+          'tag': 'Late',
+          'from': 'Origin',
+          'to': 'Destination',
+          'depart': '23:50',
+          'arrive': '23:55',
+          'duration': 5,
+          'changes': 0,
+          'fare': '2.75',
+          'crowd': 'Quiet',
+          'legs': [
+            {
+              'type': 'ride',
+              'line': 'regional-transit',
+              'from': 'Origin',
+              'to': 'Destination',
+              'mins': 20,
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(find.text('23:50 → 0:10'), findsOneWidget);
   });
 
   testWidgets('TransitJourneyCard leaves non-connector beige legs alone', (
@@ -262,6 +328,35 @@ void main() {
       find.text('Larkspur Ferry - Golden Gate Ferry - ferry'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('TransitDeparturesCard renders service time before minutes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitDeparturesCard.fromJson(const {
+          'station': 'Embarcadero',
+          'live': true,
+          'statusLabel': 'Expected',
+          'list': [
+            {
+              'line': 'muni-n',
+              'dest': 'Ocean Beach',
+              'mins': 4,
+              'serviceTime': '2026-06-26T09:12:00-07:00',
+              'serviceTimeKind': 'ExpectedDepartureTime',
+              'timeStatusLabel': 'Expected',
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(find.text('Expected'), findsOneWidget);
+    expect(find.text('9:12 AM'), findsOneWidget);
+    expect(find.text('Expected - 4 min'), findsOneWidget);
+    expect(find.text('Ocean Beach'), findsOneWidget);
   });
 
   testWidgets('LiveBartDeparturesBoard falls back to offline estimates', (

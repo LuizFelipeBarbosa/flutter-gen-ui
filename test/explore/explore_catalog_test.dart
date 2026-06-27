@@ -90,17 +90,29 @@ void main() {
     expect(catalogPrompt, contains('Google photos'));
   });
 
-  test('explore prompts require varied broad imagery', () {
+  test('explore prompts reject stock and invented image URLs', () {
     final systemPrompt = _normalizedPrompt(exploreSystemPrompt);
     final catalogPrompt = _normalizedPrompt(
       buildExploreCatalog().systemPromptFragments.join('\n'),
     );
 
-    expect(systemPrompt, contains('varied broad imagery'));
-    expect(systemPrompt, contains('avoid repeating'));
-    expect(systemPrompt, contains('generic skyline'));
-    expect(catalogPrompt, contains('varied broad imagery'));
-    expect(catalogPrompt, contains('avoid repeated generic images'));
+    expect(systemPrompt, contains('Omit imageUrl by default'));
+    expect(systemPrompt, contains('Never use Unsplash'));
+    expect(systemPrompt, contains('do not emit imageUrl'));
+    expect(catalogPrompt, contains('omit it by default'));
+    expect(catalogPrompt, contains('Never emit imageUrl for exact venues'));
+    expect(catalogPrompt, contains('invented image URLs'));
+  });
+
+  test('explore examples do not include stock image URLs', () {
+    final exampleText = [
+      for (final item in buildExploreCatalog().items)
+        for (final example in item.exampleData) example(),
+      exploreSystemPrompt,
+    ].join('\n');
+
+    expect(exampleText, isNot(contains('images.unsplash.com')));
+    expect(exampleText, isNot(contains('unsplash.com')));
   });
 }
 

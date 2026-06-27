@@ -26,9 +26,11 @@ exploration flows. Prefer image-rich modular surfaces: creative bento mosaics
 for broad visual branching, option cards for refinements, ExploreAdventurePlan
 for one-shot ordered previews, and Google Places-backed ExplorePlaceSearch for
 grounded venues and POIs because the client can enrich those cards with Google
-photos, distance, rating, price, and open status. Use varied broad imagery and
-avoid repeated generic images. Never use placeholder or example image URLs.
-Never auto-save stops; use add actions only when the user taps.
+photos, distance, rating, price, and open status. Treat imageUrl as a rare
+optional field for broad non-venue inspiration only; omit it by default. Never
+use Unsplash, Pexels, Pixabay, example, placeholder, lorem, picsum, stock, or
+invented image URLs. Never emit imageUrl for exact venues. Never auto-save
+stops; use add actions only when the user taps.
 ''';
 
 final CatalogItem exploreHeroItem = CatalogItem(
@@ -46,7 +48,10 @@ final CatalogItem exploreHeroItem = CatalogItem(
       ),
       'imageUrl': S.string(
         description:
-            'Optional stable HTTPS image URL for broad inspiration only.',
+            'Rare optional HTTPS URL for broad non-venue inspiration only. '
+            'Omit by default. Never use for exact venues, named POIs, '
+            'Unsplash, Pexels, Pixabay, example, placeholder, lorem, picsum, '
+            'stock, or invented URLs.',
       ),
       'imageAltText': S.string(description: 'Short image accessibility label.'),
       'query': S.string(
@@ -73,9 +78,6 @@ final CatalogItem exploreHeroItem = CatalogItem(
             'A waterfront-first adventure with a flexible snack stop and an '
             'easy sunset branch.',
         'badges': ['Views', 'Food', 'Transit-friendly'],
-        'imageUrl':
-            'https://images.unsplash.com/photo-1501594907352-04cda38ebc29'
-            '?auto=format&fit=crop&w=1200&q=80',
         'query': 'Build a waterfront snack and views adventure',
       },
     ]),
@@ -135,17 +137,11 @@ final CatalogItem exploreImageMosaicItem = CatalogItem(
         'title': 'Pick a vibe',
         'images': [
           {
-            'imageUrl':
-                'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429'
-                '?auto=format&fit=crop&w=1200&q=80',
             'title': 'Hilltop reward',
             'badge': 'Views',
             'query': 'Find a transit-friendly hilltop view',
           },
           {
-            'imageUrl':
-                'https://images.unsplash.com/photo-1504674900247-0877df9cc836'
-                '?auto=format&fit=crop&w=1200&q=80',
             'title': 'Snack crawl',
             'badge': 'Food',
             'query': 'Build a snack crawl nearby',
@@ -252,8 +248,11 @@ final CatalogItem explorerOptionCardItem = CatalogItem(
       ),
       'imageUrl': S.string(
         description:
-            'Optional HTTPS image URL for a broad city, neighborhood, or vibe '
-            'image. Prefer ExplorePlaceSearch for exact venue photos.',
+            'Rare optional HTTPS image URL for broad city, neighborhood, or '
+            'vibe inspiration only. Omit by default. Prefer '
+            'ExplorePlaceSearch for exact venue photos. Never use Unsplash, '
+            'Pexels, Pixabay, example, placeholder, lorem, picsum, stock, or '
+            'invented URLs.',
       ),
       'imageAltText': S.string(
         description: 'Short accessibility label for imageUrl.',
@@ -357,7 +356,11 @@ final CatalogItem exploreNoteItem = CatalogItem(
 
 final Schema _mosaicImageSchema = S.object(
   properties: {
-    'imageUrl': S.string(description: 'Stable HTTPS image URL.'),
+    'imageUrl': S.string(
+      description:
+          'Rare optional HTTPS image URL for broad non-venue inspiration only. '
+          'Omit by default and never use stock, placeholder, or invented URLs.',
+    ),
     'title': S.string(description: 'Optional tile title.'),
     'badge': S.string(description: 'Optional tile label.'),
     'imageAltText': S.string(description: 'Short image accessibility label.'),
@@ -367,7 +370,7 @@ final Schema _mosaicImageSchema = S.object(
       enumValues: ['explore_option', 'explore_place'],
     ),
   },
-  required: ['imageUrl'],
+  required: ['title', 'query'],
 );
 
 final Schema _adventureStopSchema = S.object(
@@ -389,8 +392,9 @@ final Schema _adventureStopSchema = S.object(
     'googleMapsUri': S.string(description: 'Optional Google Maps URI.'),
     'imageUrl': S.string(
       description:
-          'Optional fallback image URL. Prefer Google Places photos for exact '
-          'venues when available.',
+          'Do not use for exact venues. Prefer placeQuery/placeId so Google '
+          'Places photos can be used; omit imageUrl when photos are '
+          'unavailable.',
     ),
     'imageAltText': S.string(description: 'Short image accessibility label.'),
   },

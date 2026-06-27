@@ -519,6 +519,167 @@ class BayHopChip extends StatelessWidget {
   }
 }
 
+/// How the [BayHopLogo] hop mark is colored.
+enum BayHopLogoStyle {
+  /// Gradient arc + ink stop dots — the default mark for light surfaces.
+  gradient,
+
+  /// Brighter gradient arc + white stop dots — for dark surfaces.
+  onDark,
+
+  /// A single flat color for the whole mark — favicon / tiny / monochrome use.
+  mono,
+}
+
+/// The BayHop "hop" mark: a journey arc between two stop dots, carrying the
+/// blue→purple GenUI gradient — "two stops, one hop".
+///
+/// Transcribed verbatim from `BayHop Logo.dc.html`: the `M22 64 Q50 -2 78 64`
+/// arc (stroke-width 9, round caps) with r9 stop dots, all in a 0–100 design
+/// space scaled to [size].
+class BayHopLogo extends StatelessWidget {
+  const BayHopLogo({
+    this.size = 28,
+    this.style = BayHopLogoStyle.gradient,
+    this.monoColor = BayHopColors.ink,
+    super.key,
+  });
+
+  final double size;
+  final BayHopLogoStyle style;
+
+  /// Arc + dot color when [style] is [BayHopLogoStyle.mono].
+  final Color monoColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size.square(size),
+      painter: _BayHopMarkPainter(style: style, monoColor: monoColor),
+    );
+  }
+}
+
+class _BayHopMarkPainter extends CustomPainter {
+  _BayHopMarkPainter({required this.style, required this.monoColor});
+
+  final BayHopLogoStyle style;
+  final Color monoColor;
+
+  // Brighter gradient used on dark backgrounds (BayHop Logo.dc.html · F4).
+  static const _onDarkA = Color(0xFF19A9E8);
+  static const _onDarkB = Color(0xFF7E6FF0);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 100; // 0–100 design space → pixels.
+
+    final arc = Path()
+      ..moveTo(22 * s, 64 * s)
+      ..quadraticBezierTo(50 * s, -2 * s, 78 * s, 64 * s);
+
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 9 * s
+      ..strokeCap = StrokeCap.round;
+    final dots = Paint()..style = PaintingStyle.fill;
+
+    switch (style) {
+      case BayHopLogoStyle.gradient:
+        stroke.shader = _arcShader(
+          s,
+          BayHopColors.aiBlue,
+          BayHopColors.aiPurple,
+        );
+        dots.color = BayHopColors.ink;
+      case BayHopLogoStyle.onDark:
+        stroke.shader = _arcShader(s, _onDarkA, _onDarkB);
+        dots.color = Colors.white;
+      case BayHopLogoStyle.mono:
+        stroke.color = monoColor;
+        dots.color = monoColor;
+    }
+
+    canvas
+      ..drawPath(arc, stroke)
+      ..drawCircle(Offset(22 * s, 64 * s), 9 * s, dots)
+      ..drawCircle(Offset(78 * s, 64 * s), 9 * s, dots);
+  }
+
+  // Gradient vector (14,30)→(86,66) — the F1 `hopA` linear.
+  Shader _arcShader(double s, Color a, Color b) => ui.Gradient.linear(
+    Offset(14 * s, 30 * s),
+    Offset(86 * s, 66 * s),
+    [a, b],
+  );
+
+  @override
+  bool shouldRepaint(_BayHopMarkPainter old) =>
+      old.style != style || old.monoColor != monoColor;
+}
+
+/// The horizontal BayHop lockup: the [BayHopLogo] mark + the "BayHop" wordmark
+/// in Space Grotesk 700. On light surfaces "Hop" carries the AI gradient (the
+/// design's F3 small lockup); on dark the whole word reads light (F4).
+class BayHopWordmark extends StatelessWidget {
+  const BayHopWordmark({
+    this.markSize = 34,
+    this.fontSize = 27,
+    this.gap = 12,
+    this.gradientHop = true,
+    this.onDark = false,
+    super.key,
+  });
+
+  final double markSize;
+  final double fontSize;
+  final double gap;
+
+  /// Paint "Hop" with the AI gradient. Ignored when [onDark] is true.
+  final bool gradientHop;
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final wordStyle = BayHopText.display(
+      size: fontSize,
+      color: onDark ? const Color(0xFFEDF1F3) : BayHopColors.ink,
+      letterSpacing: -fontSize * 0.037, // ≈ -1px at 27pt (design lockup).
+      height: 1,
+    );
+
+    final Widget word;
+    if (gradientHop && !onDark) {
+      word = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Bay', style: wordStyle),
+          ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (bounds) =>
+                BayHopColors.aiGradient.createShader(bounds),
+            child: Text('Hop', style: wordStyle),
+          ),
+        ],
+      );
+    } else {
+      word = Text('BayHop', style: wordStyle);
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BayHopLogo(
+          size: markSize,
+          style: onDark ? BayHopLogoStyle.onDark : BayHopLogoStyle.gradient,
+        ),
+        SizedBox(width: gap),
+        word,
+      ],
+    );
+  }
+}
+
 /// The white rounded card surface every result card sits on.
 BoxDecoration bayHopCardDecoration({double radius = 22}) => BoxDecoration(
   color: BayHopColors.surface,

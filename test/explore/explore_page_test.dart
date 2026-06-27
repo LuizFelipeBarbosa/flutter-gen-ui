@@ -304,6 +304,6 @@ const _adventureSurface =
 {"version":"v0.9","createSurface":{"surfaceId":"main","catalogId":"$basicCatalogId","sendDataModel":true}}
 ```
 ```json
-{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"ExploreAdventurePlan","title":"One-shot test","summary":"A complete preview.","durationLabel":"3h","priceLabel":"Free","transitHint":"BART + walking","stops":[{"title":"Coffee Stop","category":"Coffee","durationMinutes":30},{"title":"View Stop","category":"Views","durationMinutes":45},{"title":"Museum Stop","category":"Culture","durationMinutes":60}]}]}}
+{"version":"v0.9","updateComponents":{"surfaceId":"main","components":[{"id":"root","component":"ExploreAdventurePlan","title":"One-shot test","summary":"A complete preview.","durationLabel":"3h","priceLabel":"Free","transitHint":"BART + walking","stops":[{"title":"Coffee Stop","category":"Coffee","durationMinutes":30},{"title":"Coffee Stop","category":"Coffee","durationMinutes":30},{"title":"View Stop","category":"Views","durationMinutes":45},{"title":"Museum Stop","category":"Culture","durationMinutes":60}]}]}}
 ```
 ''';

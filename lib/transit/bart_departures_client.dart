@@ -62,6 +62,9 @@ class BartDeparture {
     this.operatorName,
     this.operatorId,
     this.mode,
+    this.serviceTime,
+    this.serviceTimeKind,
+    this.timeStatusLabel,
   });
 
   final String line;
@@ -73,6 +76,9 @@ class BartDeparture {
   final String? operatorName;
   final String? operatorId;
   final String? mode;
+  final DateTime? serviceTime;
+  final String? serviceTimeKind;
+  final String? timeStatusLabel;
 }
 
 class BartDepartureBoard {
@@ -81,12 +87,16 @@ class BartDepartureBoard {
     required this.departures,
     this.live = true,
     this.sourceLabel = 'BART',
+    this.fetchedAt,
+    this.statusLabel,
   });
 
   final String station;
   final List<BartDeparture> departures;
   final bool live;
   final String sourceLabel;
+  final DateTime? fetchedAt;
+  final String? statusLabel;
 }
 
 class TransitAgencyInfo {
@@ -201,7 +211,10 @@ class LiveDeparturesClient {
         request,
       ),
     };
-    _departureCache[cacheKey] = _CachedBoard(board: board, fetchedAt: _now());
+    _departureCache[cacheKey] = _CachedBoard(
+      board: board,
+      fetchedAt: board.fetchedAt ?? _now(),
+    );
     return board;
   }
 
@@ -290,10 +303,11 @@ class LiveDeparturesClient {
     if (decoded['error'] case final Object error) {
       throw BartDeparturesException(error.toString());
     }
+    final fetchedAt = _now();
     if (decoded['kind'] == 'departures') {
-      return _boardFromProxyJson(decoded, normalizedStation);
+      return _boardFromProxyJson(decoded, normalizedStation, fetchedAt);
     }
-    return _boardFromBartJson(decoded, normalizedStation);
+    return _boardFromBartJson(decoded, normalizedStation, fetchedAt);
   }
 
   Future<BartDepartureBoard> _fetch511DeparturesFromNetwork(
@@ -334,21 +348,13 @@ class LiveDeparturesClient {
       throw LiveDeparturesException(stopErrors.first);
     }
 
+    final fetchedAt = _now();
     final departures = <BartDeparture>[];
     for (final visit in visits) {
       final journey = json_util.map(visit['MonitoredVehicleJourney']);
       final call = json_util.map(journey['MonitoredCall']);
-      final timeText = _field(
-        call,
-        const [
-          'ExpectedDepartureTime',
-          'ExpectedArrivalTime',
-          'AimedDepartureTime',
-          'AimedArrivalTime',
-        ],
-      );
-      final departureTime = _parseDateTime(timeText);
-      if (departureTime == null) continue;
+      final serviceTime = _siriServiceTime(call);
+      if (serviceTime == null) continue;
 
       final lineRef = _field(journey, const ['LineRef']);
       final publishedLineName = _field(journey, const ['PublishedLineName']);
@@ -362,7 +368,9 @@ class LiveDeparturesClient {
         continue;
       }
 
-      final secondsUntilDeparture = departureTime.difference(_now()).inSeconds;
+      final secondsUntilDeparture = serviceTime.time
+          .difference(fetchedAt)
+          .inSeconds;
       final minutes = secondsUntilDeparture <= 0
           ? 0
           : (secondsUntilDeparture / 60).round();
@@ -382,6 +390,9 @@ class LiveDeparturesClient {
           operatorName: agency.name,
           operatorId: agency.id,
           mode: route?.mode,
+          serviceTime: serviceTime.time,
+          serviceTimeKind: serviceTime.kind,
+          timeStatusLabel: serviceTime.statusLabel,
         ),
       );
     }
@@ -401,6 +412,7 @@ class LiveDeparturesClient {
     return BartDepartureBoard(
       station: stationName,
       sourceLabel: agency.name,
+      fetchedAt: fetchedAt,
       departures: departures.take(8).toList(),
     );
   }
@@ -469,35 +481,56 @@ class LiveDeparturesClient {
   BartDepartureBoard _boardFromProxyJson(
     Map<String, Object?> json,
     String stationAbbr,
+    DateTime fetchedAt,
   ) {
+    final boardFetchedAt = _parseDateTime(json['fetchedAt']) ?? fetchedAt;
     final departures =
-        json_util.mapList(json['list']).map(_departureFromProxy).toList()
+        json_util
+            .mapList(json['list'])
+            .map((departure) => _departureFromProxy(departure, boardFetchedAt))
+            .toList()
           ..sort((a, b) => a.minutes.compareTo(b.minutes));
     return BartDepartureBoard(
       station: json_util.string(json['station'], stationAbbr),
       departures: departures.take(8).toList(),
       sourceLabel: json_util.string(json['sourceLabel'], 'BART'),
       live: json_util.boolean(json['live'], fallback: true),
+      fetchedAt: boardFetchedAt,
+      statusLabel: json_util.nullableString(json['statusLabel']),
     );
   }
 
-  BartDeparture _departureFromProxy(Map<String, Object?> json) {
+  BartDeparture _departureFromProxy(
+    Map<String, Object?> json,
+    DateTime fetchedAt,
+  ) {
+    final minutes = _minutes(json['mins']);
+    final serviceTime =
+        _parseDateTime(json['serviceTime']) ??
+        _relativeServiceTime(fetchedAt, minutes);
     return BartDeparture(
       line: _proxyLineId(json['line']),
       destination: json_util.string(json['dest'], 'Transit'),
       platform: json_util.nullableString(json['plat']),
-      minutes: _minutes(json['mins']),
+      minutes: minutes,
       live: json_util.boolean(json['live'], fallback: true),
       lineLabel: json_util.nullableString(json['lineLabel']),
       operatorName: json_util.nullableString(json['operatorName']),
       operatorId: json_util.nullableString(json['operatorId']),
       mode: json_util.nullableString(json['mode']),
+      serviceTime: serviceTime,
+      serviceTimeKind:
+          json_util.nullableString(json['serviceTimeKind']) ??
+          'RelativeDepartureMinutes',
+      timeStatusLabel:
+          json_util.nullableString(json['timeStatusLabel']) ?? 'BART estimate',
     );
   }
 
   BartDepartureBoard _boardFromBartJson(
     Map<String, Object?> json,
     String stationAbbr,
+    DateTime fetchedAt,
   ) {
     final root = json_util.map(json['root']);
     if (_bartApiMessage(root, 'error') case final error?) {
@@ -514,13 +547,17 @@ class LiveDeparturesClient {
     final departures = <BartDeparture>[];
     for (final etd in json_util.mapList(station['etd'])) {
       for (final estimate in json_util.mapList(etd['estimate'])) {
+        final minutes = _minutes(estimate['minutes']);
         departures.add(
           BartDeparture(
             line: _lineIdForBartColor(estimate['color']),
             destination: json_util.string(etd['destination'], 'Train'),
             platform: json_util.nullableString(estimate['platform']),
-            minutes: _minutes(estimate['minutes']),
+            minutes: minutes,
             operatorName: 'BART',
+            serviceTime: _relativeServiceTime(fetchedAt, minutes),
+            serviceTimeKind: 'RelativeDepartureMinutes',
+            timeStatusLabel: 'BART estimate',
           ),
         );
       }
@@ -536,6 +573,7 @@ class LiveDeparturesClient {
     return BartDepartureBoard(
       station: json_util.string(station['name'], stationAbbr),
       departures: departures.take(8).toList(),
+      fetchedAt: fetchedAt,
     );
   }
 
@@ -735,6 +773,25 @@ class _CachedBoard {
 
   final BartDepartureBoard board;
   final DateTime fetchedAt;
+}
+
+class _SiriServiceTime {
+  const _SiriServiceTime({
+    required this.time,
+    required this.kind,
+    required this.statusLabel,
+  });
+
+  final DateTime time;
+  final String kind;
+  final String statusLabel;
+}
+
+class _SiriTimeField {
+  const _SiriTimeField(this.name, this.statusLabel);
+
+  final String name;
+  final String statusLabel;
 }
 
 extension<T> on List<T> {
@@ -1054,9 +1111,28 @@ bool _boolField(Map<String, Object?> json, List<String> keys) {
   return json_util.boolean(_valueFor(json, keys), fallback: false);
 }
 
-DateTime? _parseDateTime(String value) {
-  if (value.isEmpty) return null;
-  return DateTime.tryParse(value);
+_SiriServiceTime? _siriServiceTime(Map<String, Object?> call) {
+  for (final field in _siriTimeFields) {
+    final time = _parseDateTime(_valueFor(call, [field.name]));
+    if (time != null) {
+      return _SiriServiceTime(
+        time: time,
+        kind: field.name,
+        statusLabel: field.statusLabel,
+      );
+    }
+  }
+  return null;
+}
+
+DateTime? _parseDateTime(Object? value) {
+  final text = json_util.string(value).trim();
+  if (text.isEmpty) return null;
+  return DateTime.tryParse(text);
+}
+
+DateTime _relativeServiceTime(DateTime fetchedAt, int minutes) {
+  return fetchedAt.add(Duration(minutes: minutes));
 }
 
 int _minutes(Object? value) {
@@ -1088,6 +1164,13 @@ String _normalizeLookup(String value) {
 }
 
 String _clean(String? value) => (value ?? '').trim();
+
+const _siriTimeFields = [
+  _SiriTimeField('ExpectedDepartureTime', 'Expected'),
+  _SiriTimeField('ExpectedArrivalTime', 'Expected'),
+  _SiriTimeField('AimedDepartureTime', 'Scheduled'),
+  _SiriTimeField('AimedArrivalTime', 'Scheduled'),
+];
 
 const _sfFourthAndKingStops = [
   TransitStopInfo(

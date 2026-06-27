@@ -242,6 +242,19 @@ void main() {
       expect(called, isFalse);
     });
 
+    test('does not build photo media URIs without a key or photo name', () {
+      final missingKeyClient = GooglePlacesClient(apiKey: '   ');
+      final client = GooglePlacesClient(apiKey: 'places-key');
+
+      expect(
+        missingKeyClient.photoMediaUri(
+          const PlacePhoto(name: 'places/a/photos/b'),
+        ),
+        isNull,
+      );
+      expect(client.photoMediaUri(const PlacePhoto(name: '   ')), isNull);
+    });
+
     test('surfaces Places API error messages', () async {
       final client = GooglePlacesClient(
         apiKey: 'bad-key',

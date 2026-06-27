@@ -873,7 +873,7 @@ class TransitDeparturesCard extends StatelessWidget {
     return TransitDeparturesCard(
       station: board.station,
       live: board.live,
-      statusLabel: statusLabel,
+      statusLabel: statusLabel ?? board.statusLabel,
       departures: [
         for (final departure in board.departures)
           TransitDeparture(
@@ -886,6 +886,9 @@ class TransitDeparturesCard extends StatelessWidget {
             operatorName: departure.operatorName,
             operatorId: departure.operatorId,
             mode: departure.mode,
+            serviceTime: departure.serviceTime,
+            serviceTimeKind: departure.serviceTimeKind,
+            timeStatusLabel: departure.timeStatusLabel,
           ),
       ],
     );
@@ -994,7 +997,7 @@ class _DepartureRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            _DepartureEta(minutes: departure.minutes),
+            _DepartureEta(departure: departure),
           ],
         ),
       ),
@@ -1003,12 +1006,36 @@ class _DepartureRow extends StatelessWidget {
 }
 
 class _DepartureEta extends StatelessWidget {
-  const _DepartureEta({required this.minutes});
+  const _DepartureEta({required this.departure});
 
-  final int minutes;
+  final TransitDeparture departure;
 
   @override
   Widget build(BuildContext context) {
+    final serviceTime = departure.serviceTime;
+    if (serviceTime != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _formatServiceTime(serviceTime),
+            style: BayHopText.mono(
+              size: 18,
+              weight: FontWeight.w700,
+              color: BayHopColors.ink,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            _serviceTimeSubLabel(departure),
+            style: BayHopText.body(size: 11, color: BayHopColors.faint),
+          ),
+        ],
+      );
+    }
+
+    final minutes = departure.minutes;
     if (minutes <= 0) {
       return Text(
         'Now',
@@ -1439,13 +1466,19 @@ class TransitJourney {
     final legs = _normalizeOakConnectorLegs(rawLegs);
     final legDuration = legs.fold<int>(0, (total, leg) => total + leg.minutes);
     final depart = _string(json['depart'], '--:--');
+    final duration = legDuration > 0
+        ? legDuration
+        : _int(json['duration'], fallback: legDuration);
+    final arrive = legDuration > 0
+        ? _formatClock(_parseClock(depart) + legDuration)
+        : _string(json['arrive']);
 
     return TransitJourney(
       from: _string(json['from'], 'Origin'),
       to: _string(json['to'], 'Destination'),
       depart: depart,
-      arrive: _string(json['arrive']),
-      duration: _int(json['duration'], fallback: legDuration),
+      arrive: arrive,
+      duration: duration,
       changes: _int(json['changes']),
       fare: _string(json['fare']),
       crowd: _string(json['crowd']),
@@ -1563,6 +1596,9 @@ class TransitDeparture {
     this.operatorName,
     this.operatorId,
     this.mode,
+    this.serviceTime,
+    this.serviceTimeKind,
+    this.timeStatusLabel,
   });
 
   factory TransitDeparture.fromJson(Map<String, Object?> json) {
@@ -1576,6 +1612,9 @@ class TransitDeparture {
       operatorName: _nullableString(json['operatorName']),
       operatorId: _nullableString(json['operatorId']),
       mode: _nullableString(json['mode']),
+      serviceTime: _dateTime(json['serviceTime']),
+      serviceTimeKind: _nullableString(json['serviceTimeKind']),
+      timeStatusLabel: _nullableString(json['timeStatusLabel']),
     );
   }
 
@@ -1588,6 +1627,9 @@ class TransitDeparture {
   final String? operatorName;
   final String? operatorId;
   final String? mode;
+  final DateTime? serviceTime;
+  final String? serviceTimeKind;
+  final String? timeStatusLabel;
 
   String get etaLabel => minutes <= 0 ? 'Now' : '$minutes min';
 }
@@ -1770,6 +1812,12 @@ String _departureSubline(TransitDeparture departure, TransitLine line) {
   if (departure.platform != null) add('Plat ${departure.platform}');
 
   return parts.join(' - ');
+}
+
+String _serviceTimeSubLabel(TransitDeparture departure) {
+  final label = departure.timeStatusLabel?.trim();
+  if (label == null || label.isEmpty) return departure.etaLabel;
+  return '$label - ${departure.etaLabel}';
 }
 
 class _MutedStatusChip extends StatelessWidget {
@@ -1988,6 +2036,13 @@ String _string(Object? value, [String fallback = '']) =>
 
 String? _nullableString(Object? value) => json_value.nullableString(value);
 
+DateTime? _dateTime(Object? value) {
+  if (value is DateTime) return value;
+  final text = _nullableString(value);
+  if (text == null || text.isEmpty) return null;
+  return DateTime.tryParse(text);
+}
+
 int _int(Object? value, {int fallback = 0}) =>
     json_value.integer(value, fallback: fallback);
 
@@ -1995,6 +2050,14 @@ int? _nullableInt(Object? value) => json_value.nullableInteger(value);
 
 bool _bool(Object? value, {required bool fallback}) =>
     json_value.boolean(value, fallback: fallback);
+
+String _formatServiceTime(DateTime serviceTime) {
+  final local = serviceTime.toLocal();
+  final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final period = local.hour < 12 ? 'AM' : 'PM';
+  return '$hour:$minute $period';
+}
 
 BartDepartureBoard _estimatedBartDepartureBoard(
   String stationAbbr,
