@@ -239,6 +239,73 @@ void main() {
       },
     );
 
+    test(
+      'ignores stale 511 times before applying field precedence',
+      () async {
+        final client = LiveDeparturesClient(
+          key511: 'test-511-key',
+          now: () => DateTime.parse('2026-06-26T12:00:30Z'),
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/transit/StopMonitoring') {
+              return _jsonResponse(
+                _siri([
+                  _visit(
+                    line: 'N',
+                    publishedLine: 'N',
+                    destination: 'Stale expected falls back',
+                    stopName: 'Embarcadero Station',
+                    expectedDeparture: '2026-06-26T11:57:00Z',
+                    aimedDeparture: '2026-06-26T12:07:00Z',
+                  ),
+                  _visit(
+                    line: 'K',
+                    publishedLine: 'K',
+                    destination: 'Near-past expected clamps',
+                    stopName: 'Embarcadero Station',
+                    expectedDeparture: '2026-06-26T11:59:00Z',
+                    aimedDeparture: '2026-06-26T12:04:00Z',
+                  ),
+                  _visit(
+                    line: 'M',
+                    publishedLine: 'M',
+                    destination: 'Stale only skipped',
+                    stopName: 'Embarcadero Station',
+                    expectedDeparture: '2026-06-26T11:55:00Z',
+                  ),
+                ]),
+              );
+            }
+            return http.Response('not found', 404);
+          }),
+        );
+
+        final board = await client.fetch511Departures(
+          agency: 'SF',
+          stopCode: '15184',
+        );
+
+        final departuresByDestination = {
+          for (final departure in board.departures)
+            departure.destination: departure,
+        };
+        expect(departuresByDestination, isNot(contains('Stale only skipped')));
+
+        final fallback = departuresByDestination['Stale expected falls back']!;
+        expect(fallback.minutes, 7);
+        expect(fallback.serviceTimeKind, 'AimedDepartureTime');
+        expect(fallback.timeStatusLabel, 'Scheduled');
+        expect(
+          fallback.serviceTime,
+          DateTime.parse('2026-06-26T12:07:00Z'),
+        );
+
+        final nearPast = departuresByDestination['Near-past expected clamps']!;
+        expect(nearPast.minutes, 0);
+        expect(nearPast.serviceTimeKind, 'ExpectedDepartureTime');
+        expect(nearPast.timeStatusLabel, 'Expected');
+      },
+    );
+
     test('uses local Muni stop codes for 4th and King', () async {
       final requests = <Uri>[];
       final client = LiveDeparturesClient(

@@ -296,12 +296,25 @@ class _HeroPlaceEnrichment {
   final Uri? photoUri;
 }
 
-class ExploreImageMosaic extends StatelessWidget {
+class _MosaicPlaceEnrichment {
+  const _MosaicPlaceEnrichment({
+    required this.place,
+    this.photoUri,
+  });
+
+  final PlaceResult place;
+  final Uri? photoUri;
+
+  String? get photoAttributionLabel => place.primaryPhoto?.attributionLabel;
+}
+
+class ExploreImageMosaic extends StatefulWidget {
   const ExploreImageMosaic({
     required this.tiles,
     required this.onAction,
     this.title,
     this.summary,
+    this.client,
     super.key,
   });
 
@@ -329,13 +342,103 @@ class ExploreImageMosaic extends StatelessWidget {
   final String? title;
   final String? summary;
   final List<ExploreMosaicImage> tiles;
+  final GooglePlacesClient? client;
   final void Function(String actionName, JsonMap context) onAction;
 
   @override
+  State<ExploreImageMosaic> createState() => _ExploreImageMosaicState();
+}
+
+class _ExploreImageMosaicState extends State<ExploreImageMosaic> {
+  late final GooglePlacesClient _client = widget.client ?? GooglePlacesClient();
+  Map<String, _MosaicPlaceEnrichment> _enrichments = const {};
+  String _enrichmentKey = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _reloadEnrichments();
+  }
+
+  @override
+  void didUpdateWidget(covariant ExploreImageMosaic oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final key = _mosaicEnrichmentKey(_visibleTiles);
+    if (key == _enrichmentKey) return;
+
+    _enrichments = const {};
+    _reloadEnrichments();
+  }
+
+  @override
+  void dispose() {
+    if (widget.client == null) _client.close();
+    super.dispose();
+  }
+
+  List<ExploreMosaicImage> get _visibleTiles {
+    return _dedupeMosaicImages(widget.tiles).take(5).toList(growable: false);
+  }
+
+  void _reloadEnrichments() {
+    final visibleTiles = _visibleTiles;
+    final key = _mosaicEnrichmentKey(visibleTiles);
+    _enrichmentKey = key;
+    if (key.isEmpty) {
+      _enrichments = const {};
+      return;
+    }
+
+    unawaited(_loadEnrichments(visibleTiles, key));
+  }
+
+  Future<void> _loadEnrichments(
+    List<ExploreMosaicImage> visibleTiles,
+    String enrichmentKey,
+  ) async {
+    final enrichments = <String, _MosaicPlaceEnrichment>{};
+
+    for (var index = 0; index < visibleTiles.length; index++) {
+      final tile = visibleTiles[index];
+      final tileKey = _mosaicTilePlaceKey(tile, index);
+      if (tileKey == null) continue;
+
+      final placeQuery = tile.placeQuery!.trim();
+      try {
+        final results = await _client.searchText(
+          query: placeQuery,
+          maxResultCount: 1,
+          regionCode: 'US',
+        );
+        if (!mounted || _enrichmentKey != enrichmentKey) return;
+        if (results.isEmpty) continue;
+
+        final place = results.first;
+        enrichments[tileKey] = _MosaicPlaceEnrichment(
+          place: place,
+          photoUri: _photoUriFor(place),
+        );
+      } on Object {
+        if (!mounted || _enrichmentKey != enrichmentKey) return;
+      }
+    }
+
+    if (!mounted || _enrichmentKey != enrichmentKey) return;
+    setState(() {
+      _enrichments = enrichments;
+    });
+  }
+
+  Uri? _photoUriFor(PlaceResult place) {
+    final photo = place.primaryPhoto;
+    if (photo == null) return null;
+
+    return _client.photoMediaUri(photo, maxWidthPx: 640, maxHeightPx: 480);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final visibleTiles = _dedupeMosaicImages(
-      tiles,
-    ).take(5).toList(growable: false);
+    final visibleTiles = _visibleTiles;
     if (visibleTiles.isEmpty) return const SizedBox.shrink();
 
     return Container(
@@ -345,15 +448,15 @@ class ExploreImageMosaic extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (title != null) ...[
+          if (widget.title != null) ...[
             Text(
-              title!,
+              widget.title!,
               style: BayHopText.body(size: 15, weight: FontWeight.w800),
             ),
-            if (summary != null) ...[
+            if (widget.summary != null) ...[
               const SizedBox(height: 4),
               Text(
-                summary!,
+                widget.summary!,
                 style: BayHopText.body(
                   size: 12.5,
                   color: BayHopColors.muted,
@@ -367,8 +470,9 @@ class ExploreImageMosaic extends StatelessWidget {
             builder: (context, constraints) {
               return _ExploreImageBentoLayout(
                 tiles: visibleTiles,
+                enrichments: _enrichments,
                 maxWidth: constraints.maxWidth,
-                onAction: onAction,
+                onAction: widget.onAction,
               );
             },
           ),
@@ -381,11 +485,13 @@ class ExploreImageMosaic extends StatelessWidget {
 class _ExploreImageBentoLayout extends StatelessWidget {
   const _ExploreImageBentoLayout({
     required this.tiles,
+    required this.enrichments,
     required this.maxWidth,
     required this.onAction,
   });
 
   final List<ExploreMosaicImage> tiles;
+  final Map<String, _MosaicPlaceEnrichment> enrichments;
   final double maxWidth;
   final void Function(String actionName, JsonMap context) onAction;
 
@@ -404,6 +510,7 @@ class _ExploreImageBentoLayout extends StatelessWidget {
               slot: slots[index],
               child: _MosaicTile(
                 data: tiles[index],
+                enrichment: _enrichmentFor(tiles[index], index),
                 density: _mosaicTileDensity(index, tiles.length),
                 onAction: onAction,
               ),
@@ -423,6 +530,7 @@ class _ExploreImageBentoLayout extends StatelessWidget {
             ),
             child: _MosaicTile(
               data: tiles[index],
+              enrichment: _enrichmentFor(tiles[index], index),
               aspectRatio: index == 0 && tiles.length > 2 ? 1.28 : 1.48,
               density: index == 0
                   ? _MosaicTileDensity.featured
@@ -433,6 +541,13 @@ class _ExploreImageBentoLayout extends StatelessWidget {
       ],
     );
   }
+
+  _MosaicPlaceEnrichment? _enrichmentFor(ExploreMosaicImage tile, int index) {
+    final tileKey = _mosaicTilePlaceKey(tile, index);
+    if (tileKey == null) return null;
+
+    return enrichments[tileKey];
+  }
 }
 
 class ExploreMosaicImage {
@@ -441,6 +556,7 @@ class ExploreMosaicImage {
     this.title,
     this.badge,
     this.imageAltText,
+    this.placeQuery,
     this.query,
     this.actionName = 'explore_option',
   });
@@ -451,6 +567,7 @@ class ExploreMosaicImage {
       title: _nullableString(json['title']),
       badge: _nullableString(json['badge']),
       imageAltText: _nullableString(json['imageAltText']),
+      placeQuery: _nullableString(json['placeQuery']),
       query: _nullableString(json['query']),
       actionName: _string(json['actionName'], 'explore_option'),
     );
@@ -460,15 +577,21 @@ class ExploreMosaicImage {
   final String? title;
   final String? badge;
   final String? imageAltText;
+  final String? placeQuery;
   final String? query;
   final String actionName;
 
   JsonMap get actionContext {
+    final trimmedPlaceQuery = placeQuery?.trim();
     return {
       'title': title,
       'badge': badge,
+      'placeQuery': trimmedPlaceQuery == null || trimmedPlaceQuery.isEmpty
+          ? null
+          : trimmedPlaceQuery,
       'query': query,
-      'imageUrl': imageUrl,
+      if (trimmedPlaceQuery == null || trimmedPlaceQuery.isEmpty)
+        'imageUrl': imageUrl,
     }..removeWhere((_, value) => value == null);
   }
 }
@@ -479,22 +602,30 @@ class _MosaicTile extends StatelessWidget {
   const _MosaicTile({
     required this.data,
     required this.onAction,
+    this.enrichment,
     this.aspectRatio,
     this.density = _MosaicTileDensity.regular,
   });
 
   final ExploreMosaicImage data;
   final void Function(String actionName, JsonMap context) onAction;
+  final _MosaicPlaceEnrichment? enrichment;
   final double? aspectRatio;
   final _MosaicTileDensity density;
 
   @override
   Widget build(BuildContext context) {
-    final fallbackImageUrl = _fallbackImageUrlFor([
-      data.title,
-      data.badge,
-      data.query,
-    ]);
+    final hasPlaceQuery = _hasMosaicPlaceQuery(data);
+    final imageUrl = hasPlaceQuery
+        ? enrichment?.photoUri?.toString()
+        : data.imageUrl;
+    final fallbackImageUrl = hasPlaceQuery
+        ? null
+        : _fallbackImageUrlFor([
+            data.title,
+            data.badge,
+            data.query,
+          ]);
     final tile = ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: LayoutBuilder(
@@ -503,7 +634,7 @@ class _MosaicTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               _ExploreNetworkImage(
-                imageUrl: data.imageUrl,
+                imageUrl: imageUrl,
                 fallbackImageUrl: fallbackImageUrl,
                 semanticLabel: data.imageAltText,
                 fallbackIcon: Icons.image_rounded,
@@ -520,6 +651,17 @@ class _MosaicTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (enrichment?.photoAttributionLabel != null &&
+                  constraints.maxWidth >= 170 &&
+                  constraints.maxHeight >= 150)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  right: 8,
+                  child: _PhotoAttributionPill(
+                    label: enrichment!.photoAttributionLabel!,
+                  ),
+                ),
               Positioned.fill(
                 child: _MosaicTileCaption(
                   data: data,
@@ -2474,6 +2616,28 @@ String _adventureKey(List<ExploreAdventureStop> stops) {
       .join(';;');
 }
 
+String _mosaicEnrichmentKey(List<ExploreMosaicImage> images) {
+  final keys = <String>[];
+  for (var index = 0; index < images.length; index++) {
+    final key = _mosaicTilePlaceKey(images[index], index);
+    if (key != null) keys.add(key);
+  }
+
+  return keys.join(';;');
+}
+
+String? _mosaicTilePlaceKey(ExploreMosaicImage image, int index) {
+  final placeQuery = image.placeQuery?.trim();
+  if (placeQuery == null || placeQuery.isEmpty) return null;
+
+  return '$index|$placeQuery';
+}
+
+bool _hasMosaicPlaceQuery(ExploreMosaicImage image) {
+  final placeQuery = image.placeQuery?.trim();
+  return placeQuery != null && placeQuery.isNotEmpty;
+}
+
 List<PlaceResult> _dedupePlaceResults(Iterable<PlaceResult> results) {
   return _dedupeByKeys(results, _placeResultKeys);
 }
@@ -2534,6 +2698,9 @@ Iterable<String> _adventureStopKeys(ExploreAdventureStop stop) sync* {
 }
 
 Iterable<String> _mosaicImageKeys(ExploreMosaicImage image) sync* {
+  final placeQuery = _normalizeDedupeText(image.placeQuery);
+  if (placeQuery != null) yield 'place-query:$placeQuery';
+
   final query = _normalizeDedupeText(image.query);
   if (query != null) yield 'query:$query';
 

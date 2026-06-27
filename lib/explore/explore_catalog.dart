@@ -31,8 +31,10 @@ optional field for broad non-venue inspiration only; omit it by default. Never
 use Unsplash, Pexels, Pixabay, example, placeholder, lorem, picsum, stock, or
 invented image URLs. Use ExploreHero.placeQuery when the header should depict
 a specific venue, landmark, park, neighborhood anchor, or representative exact
-place through Google Places photos. Never emit imageUrl for exact venues. Never
-auto-save stops; use add actions only when the user taps.
+place through Google Places photos. Use ExploreImageMosaic images[].placeQuery
+when a bento tile should show an actual venue, landmark, park, neighborhood
+anchor, or representative exact place. Never emit imageUrl for exact venues.
+Never auto-save stops; use add actions only when the user taps.
 ''';
 
 final CatalogItem exploreHeroItem = CatalogItem(
@@ -123,12 +125,16 @@ final CatalogItem exploreSummaryItem = CatalogItem(
 final CatalogItem exploreImageMosaicItem = CatalogItem(
   name: 'ExploreImageMosaic',
   dataSchema: S.object(
-    description: 'A two-to-five tile visual browser for broad inspiration.',
+    description:
+        'A two-to-five tile visual browser for broad inspiration or grounded '
+        'place branches.',
     properties: {
       'title': S.string(description: 'Optional block title.'),
       'summary': S.string(description: 'Optional short block summary.'),
       'images': S.list(
-        description: 'Image tiles for broad city, neighborhood, or vibe ideas.',
+        description:
+            'Bento tiles for broad city, neighborhood, vibe, or actual-place '
+            'branching.',
         items: _mosaicImageSchema,
         minItems: 2,
         maxItems: 5,
@@ -149,11 +155,13 @@ final CatalogItem exploreImageMosaicItem = CatalogItem(
           {
             'title': 'Hilltop reward',
             'badge': 'Views',
+            'placeQuery': 'Twin Peaks San Francisco',
             'query': 'Find a transit-friendly hilltop view',
           },
           {
             'title': 'Snack crawl',
             'badge': 'Food',
+            'placeQuery': 'Ferry Building San Francisco',
             'query': 'Build a snack crawl nearby',
           },
         ],
@@ -369,11 +377,19 @@ final Schema _mosaicImageSchema = S.object(
     'imageUrl': S.string(
       description:
           'Rare optional HTTPS image URL for broad non-venue inspiration only. '
-          'Omit by default and never use stock, placeholder, or invented URLs.',
+          'Omit by default. Never use when placeQuery is present, and never '
+          'use stock, placeholder, or invented URLs.',
     ),
     'title': S.string(description: 'Optional tile title.'),
     'badge': S.string(description: 'Optional tile label.'),
     'imageAltText': S.string(description: 'Short image accessibility label.'),
+    'placeQuery': S.string(
+      description:
+          'Optional Google Places text query for an actual tile photo. Use for '
+          'exact venues, landmarks, parks, neighborhood anchors, or a '
+          'representative exact place. Prefer over imageUrl whenever the tile '
+          'should show a real place.',
+    ),
     'query': S.string(description: 'Optional follow-up query.'),
     'actionName': S.string(
       description: 'Action name to dispatch.',

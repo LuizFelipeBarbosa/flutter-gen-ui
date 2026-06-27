@@ -26,8 +26,10 @@ void main() {
     test(
       'resolves full station names before requesting live departures',
       () async {
+        final fetchedAt = DateTime.parse('2026-06-26T12:00:00Z');
         late Uri requestedUrl;
         final client = BartDeparturesClient(
+          now: () => fetchedAt,
           httpClient: MockClient((request) async {
             requestedUrl = request.url;
             return http.Response(
@@ -62,8 +64,94 @@ void main() {
         expect(requestedUrl.queryParameters['orig'], 'EMBR');
         expect(board.station, 'Embarcadero');
         expect(board.departures.single.line, 'bart-red');
+        expect(board.departures.single.minutes, 4);
+        expect(
+          board.departures.single.serviceTime,
+          fetchedAt.add(const Duration(minutes: 4)),
+        );
+        expect(
+          board.departures.single.serviceTimeKind,
+          'RelativeDepartureMinutes',
+        );
+        expect(board.departures.single.timeStatusLabel, 'BART estimate');
       },
     );
+
+    test('uses exact proxy service times when they are fresh', () async {
+      final client = BartDeparturesClient(
+        proxyBaseUrl: 'https://example.test/departures/',
+        httpClient: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'kind': 'departures',
+              'station': 'Embarcadero',
+              'fetchedAt': '2026-06-26T12:00:00Z',
+              'list': [
+                {
+                  'line': 'muni-n',
+                  'dest': 'Exact expected',
+                  'mins': 99,
+                  'serviceTime': '2026-06-26T12:04:00Z',
+                  'serviceTimeKind': 'ExpectedDepartureTime',
+                  'timeStatusLabel': 'Expected',
+                },
+                {
+                  'line': 'bart-red',
+                  'dest': 'Relative estimate',
+                  'mins': 2,
+                  'serviceTime': '2026-06-26T12:10:00Z',
+                  'serviceTimeKind': 'RelativeDepartureMinutes',
+                  'timeStatusLabel': 'BART estimate',
+                },
+                {
+                  'line': 'muni-t',
+                  'dest': 'Stale expected',
+                  'mins': 3,
+                  'serviceTime': '2026-06-26T11:55:00Z',
+                  'serviceTimeKind': 'ExpectedDepartureTime',
+                  'timeStatusLabel': 'Expected',
+                },
+              ],
+            }),
+            200,
+          ),
+        ),
+      );
+
+      final board = await client.fetchDepartures('EMBR');
+
+      final departuresByDestination = {
+        for (final departure in board.departures)
+          departure.destination: departure,
+      };
+
+      final exactExpected = departuresByDestination['Exact expected']!;
+      expect(exactExpected.minutes, 4);
+      expect(
+        exactExpected.serviceTime,
+        DateTime.parse('2026-06-26T12:04:00Z'),
+      );
+      expect(exactExpected.serviceTimeKind, 'ExpectedDepartureTime');
+      expect(exactExpected.timeStatusLabel, 'Expected');
+
+      final relativeEstimate = departuresByDestination['Relative estimate']!;
+      expect(relativeEstimate.minutes, 2);
+      expect(
+        relativeEstimate.serviceTime,
+        DateTime.parse('2026-06-26T12:02:00Z'),
+      );
+      expect(relativeEstimate.serviceTimeKind, 'RelativeDepartureMinutes');
+      expect(relativeEstimate.timeStatusLabel, 'BART estimate');
+
+      final staleExpected = departuresByDestination['Stale expected']!;
+      expect(staleExpected.minutes, 3);
+      expect(
+        staleExpected.serviceTime,
+        DateTime.parse('2026-06-26T12:03:00Z'),
+      );
+      expect(staleExpected.serviceTimeKind, 'RelativeDepartureMinutes');
+      expect(staleExpected.timeStatusLabel, 'BART estimate');
+    });
 
     test('uses the public demo key when BART_API_KEY is blank', () async {
       late Uri requestedUrl;

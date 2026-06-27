@@ -109,6 +109,121 @@ void main() {
     expect(find.byIcon(Icons.travel_explore_rounded), findsOneWidget);
   });
 
+  testWidgets('image mosaic uses Google Places photo for placeQuery tiles', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: ExploreImageMosaic(
+              tiles: const [
+                ExploreMosaicImage(
+                  title: 'Photo tile',
+                  badge: 'Grounded',
+                  placeQuery: 'Photo Place San Francisco',
+                  imageUrl: 'https://assets.example.test/ignored.jpg',
+                  query: 'Explore the photo tile',
+                ),
+              ],
+              client: _PhotoPlacesClient(),
+              onAction: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final imageFinder = find.byType(Image);
+    expect(imageFinder, findsOneWidget);
+
+    final image = tester.widget<Image>(imageFinder);
+    final provider = image.image;
+
+    expect(provider, isA<NetworkImage>());
+    expect((provider as NetworkImage).url, contains('/media'));
+    expect(provider.url, contains('maxWidthPx=640'));
+  });
+
+  testWidgets('image mosaic with placeQuery does not use imageUrl fallback', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: ExploreImageMosaic(
+              tiles: const [
+                ExploreMosaicImage(
+                  title: 'No photo tile',
+                  badge: 'Grounded',
+                  placeQuery: 'No Photo Place San Francisco',
+                  imageUrl: 'https://assets.example.test/broad-tile.jpg',
+                  query: 'Explore the no-photo tile',
+                ),
+              ],
+              client: _NoPhotoPlacesClient(),
+              onAction: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Image), findsNothing);
+    expect(find.byIcon(Icons.image_rounded), findsOneWidget);
+  });
+
+  testWidgets(
+    'image mosaic keeps query as action text with placeQuery metadata',
+    (
+      tester,
+    ) async {
+      String? actionName;
+      Map<String, Object?>? actionContext;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 720,
+              child: ExploreImageMosaic(
+                tiles: const [
+                  ExploreMosaicImage(
+                    title: 'Photo tile',
+                    badge: 'Grounded',
+                    placeQuery: 'Photo Place San Francisco',
+                    imageUrl: 'https://assets.example.test/ignored.jpg',
+                    query: 'Explore the photo tile',
+                  ),
+                ],
+                client: _PhotoPlacesClient(),
+                onAction: (name, context) {
+                  actionName = name;
+                  actionContext = context;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.tap(find.text('Photo tile'));
+
+      expect(actionName, 'explore_option');
+      expect(actionContext?['query'], 'Explore the photo tile');
+      expect(actionContext?['placeQuery'], 'Photo Place San Francisco');
+      expect(actionContext?.containsKey('imageUrl'), isFalse);
+    },
+  );
+
   testWidgets('image mosaic filters duplicate generated tiles', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -141,6 +256,47 @@ void main() {
     expect(find.text('Coffee crawl'), findsOneWidget);
     expect(find.text('Duplicate coffee'), findsNothing);
     expect(find.text('Museum stop'), findsOneWidget);
+  });
+
+  testWidgets('image mosaic filters duplicate placeQuery tiles', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: ExploreImageMosaic(
+              tiles: const [
+                ExploreMosaicImage(
+                  title: 'Lake branch',
+                  placeQuery: 'Lake Merritt Oakland',
+                  query: 'Explore Lake Merritt',
+                ),
+                ExploreMosaicImage(
+                  title: 'Duplicate lake branch',
+                  placeQuery: 'Lake Merritt Oakland',
+                  query: 'Explore a different Lake Merritt branch',
+                ),
+                ExploreMosaicImage(
+                  title: 'Museum branch',
+                  placeQuery: 'Oakland Museum of California',
+                  query: 'Explore OMCA',
+                ),
+              ],
+              client: _NoPhotoPlacesClient(),
+              onAction: (_, _) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lake branch'), findsOneWidget);
+    expect(find.text('Duplicate lake branch'), findsNothing);
+    expect(find.text('Museum branch'), findsOneWidget);
   });
 
   testWidgets('places carousel fits dense metadata without overflow', (

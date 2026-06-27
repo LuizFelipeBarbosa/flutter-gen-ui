@@ -49,6 +49,10 @@ Visual and modular UI rules:
 - For a header image that should depict an actual place, set
   ExploreHero.placeQuery to a specific venue, landmark, park, neighborhood
   anchor, or representative exact place. Do not use imageUrl for that case.
+- For ExploreImageMosaic tiles that should depict actual places, set
+  images[].placeQuery to a specific venue, landmark, park, neighborhood anchor,
+  or representative exact place. Keep query as the follow-up action request.
+  Do not emit imageUrl when placeQuery is present.
 - For ExplorePlaceSearch, set layout to "list", "carousel", or "mosaic" based
   on the browsing moment. Default to "list" when comparison and details matter.
 - Use priceLabel values like Free, $, $$, $$$, or an explicit estimate like
@@ -155,15 +159,22 @@ Example:
       },
       {
         "id": "branches",
-        "component": "ExplorerOptionCard",
-        "title": "Make it more outdoorsy",
-        "description": "Trade museum time for a longer lake walk and a garden stop.",
-        "badge": "Remix",
-        "category": "Outdoors",
-        "durationMinutes": 180,
-        "priceLabel": "Free-$",
-        "actionName": "explore_option",
-        "query": "Remix this Oakland plan to be more outdoorsy"
+        "component": "ExploreImageMosaic",
+        "title": "Pick a finale",
+        "images": [
+          {
+            "title": "Lake sunset",
+            "badge": "Outdoors",
+            "placeQuery": "Lake Merritt Oakland",
+            "query": "Remix this Oakland plan with a longer Lake Merritt finale"
+          },
+          {
+            "title": "Museum finish",
+            "badge": "Culture",
+            "placeQuery": "Oakland Museum of California",
+            "query": "Remix this Oakland plan with more museum time"
+          }
+        ]
       }
     ]
   }

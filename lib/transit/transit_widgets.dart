@@ -1023,7 +1023,7 @@ class _DepartureEta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final serviceTime = departure.serviceTime;
-    if (serviceTime != null) {
+    if (serviceTime != null && _hasExactServiceClock(departure)) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
@@ -1834,6 +1834,11 @@ String _serviceTimeSubLabel(TransitDeparture departure) {
   final label = departure.timeStatusLabel?.trim();
   if (label == null || label.isEmpty) return departure.etaLabel;
   return '$label - ${departure.etaLabel}';
+}
+
+bool _hasExactServiceClock(TransitDeparture departure) {
+  final kind = departure.serviceTimeKind?.trim().toLowerCase();
+  return kind != 'relativedepartureminutes';
 }
 
 class _MutedStatusChip extends StatelessWidget {

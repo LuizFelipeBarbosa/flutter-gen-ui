@@ -401,6 +401,62 @@ void main() {
     expect(find.text('Ocean Beach'), findsOneWidget);
   });
 
+  testWidgets('TransitDeparturesCard renders clamped service times as now', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitDeparturesCard.fromJson(const {
+          'station': 'Embarcadero',
+          'live': true,
+          'list': [
+            {
+              'line': 'muni-t',
+              'dest': 'Sunnydale',
+              'mins': 0,
+              'serviceTime': '2026-06-26T09:00:00-07:00',
+              'serviceTimeKind': 'AimedDepartureTime',
+              'timeStatusLabel': 'Scheduled',
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(find.text('9:00 AM'), findsOneWidget);
+    expect(find.text('Scheduled - Now'), findsOneWidget);
+    expect(find.text('Sunnydale'), findsOneWidget);
+  });
+
+  testWidgets('TransitDeparturesCard keeps BART estimates relative', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitDeparturesCard.fromJson(const {
+          'station': 'Embarcadero',
+          'live': true,
+          'list': [
+            {
+              'line': 'bart-red',
+              'dest': 'Richmond',
+              'mins': 4,
+              'serviceTime': '2026-06-26T09:12:00-07:00',
+              'serviceTimeKind': 'RelativeDepartureMinutes',
+              'timeStatusLabel': 'BART estimate',
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(find.text('9:12 AM'), findsNothing);
+    expect(find.text('BART estimate - 4 min'), findsNothing);
+    expect(find.text('4'), findsOneWidget);
+    expect(find.text('min'), findsOneWidget);
+    expect(find.text('Richmond'), findsOneWidget);
+  });
+
   testWidgets('LiveBartDeparturesBoard falls back to offline estimates', (
     tester,
   ) async {

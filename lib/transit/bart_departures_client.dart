@@ -353,7 +353,7 @@ class LiveDeparturesClient {
     for (final visit in visits) {
       final journey = json_util.map(visit['MonitoredVehicleJourney']);
       final call = json_util.map(journey['MonitoredCall']);
-      final serviceTime = _siriServiceTime(call);
+      final serviceTime = _siriServiceTime(call, fetchedAt: fetchedAt);
       if (serviceTime == null) continue;
 
       final lineRef = _field(journey, const ['LineRef']);
@@ -368,12 +368,7 @@ class LiveDeparturesClient {
         continue;
       }
 
-      final secondsUntilDeparture = serviceTime.time
-          .difference(fetchedAt)
-          .inSeconds;
-      final minutes = secondsUntilDeparture <= 0
-          ? 0
-          : (secondsUntilDeparture / 60).round();
+      final minutes = _minutesUntil(serviceTime.time, fetchedAt);
       departures.add(
         BartDeparture(
           line: _lineIdFor511(agency.id, lineRef, route, publishedLineName),
@@ -504,10 +499,21 @@ class LiveDeparturesClient {
     Map<String, Object?> json,
     DateTime fetchedAt,
   ) {
-    final minutes = _minutes(json['mins']);
-    final serviceTime =
-        _parseDateTime(json['serviceTime']) ??
-        _relativeServiceTime(fetchedAt, minutes);
+    final relativeMinutes = _minutes(json['mins']);
+    final providedServiceTime = _parseDateTime(json['serviceTime']);
+    final providedServiceTimeKind = json_util.nullableString(
+      json['serviceTimeKind'],
+    );
+    final hasUsableServiceTime =
+        providedServiceTime != null &&
+        !_isRelativeServiceTimeKind(providedServiceTimeKind) &&
+        !_isStaleServiceTime(providedServiceTime, fetchedAt);
+    final minutes = hasUsableServiceTime
+        ? _minutesUntil(providedServiceTime, fetchedAt)
+        : relativeMinutes;
+    final serviceTime = hasUsableServiceTime
+        ? providedServiceTime
+        : _relativeServiceTime(fetchedAt, minutes);
     return BartDeparture(
       line: _proxyLineId(json['line']),
       destination: json_util.string(json['dest'], 'Transit'),
@@ -519,11 +525,12 @@ class LiveDeparturesClient {
       operatorId: json_util.nullableString(json['operatorId']),
       mode: json_util.nullableString(json['mode']),
       serviceTime: serviceTime,
-      serviceTimeKind:
-          json_util.nullableString(json['serviceTimeKind']) ??
-          'RelativeDepartureMinutes',
-      timeStatusLabel:
-          json_util.nullableString(json['timeStatusLabel']) ?? 'BART estimate',
+      serviceTimeKind: hasUsableServiceTime
+          ? providedServiceTimeKind
+          : 'RelativeDepartureMinutes',
+      timeStatusLabel: hasUsableServiceTime
+          ? json_util.nullableString(json['timeStatusLabel'])
+          : 'BART estimate',
     );
   }
 
@@ -1111,16 +1118,18 @@ bool _boolField(Map<String, Object?> json, List<String> keys) {
   return json_util.boolean(_valueFor(json, keys), fallback: false);
 }
 
-_SiriServiceTime? _siriServiceTime(Map<String, Object?> call) {
+_SiriServiceTime? _siriServiceTime(
+  Map<String, Object?> call, {
+  required DateTime fetchedAt,
+}) {
   for (final field in _siriTimeFields) {
     final time = _parseDateTime(_valueFor(call, [field.name]));
-    if (time != null) {
-      return _SiriServiceTime(
-        time: time,
-        kind: field.name,
-        statusLabel: field.statusLabel,
-      );
-    }
+    if (time == null || _isStaleServiceTime(time, fetchedAt)) continue;
+    return _SiriServiceTime(
+      time: time,
+      kind: field.name,
+      statusLabel: field.statusLabel,
+    );
   }
   return null;
 }
@@ -1133,6 +1142,20 @@ DateTime? _parseDateTime(Object? value) {
 
 DateTime _relativeServiceTime(DateTime fetchedAt, int minutes) {
   return fetchedAt.add(Duration(minutes: minutes));
+}
+
+int _minutesUntil(DateTime serviceTime, DateTime fetchedAt) {
+  final secondsUntilDeparture = serviceTime.difference(fetchedAt).inSeconds;
+  if (secondsUntilDeparture <= 0) return 0;
+  return (secondsUntilDeparture / 60).round();
+}
+
+bool _isStaleServiceTime(DateTime serviceTime, DateTime fetchedAt) {
+  return fetchedAt.difference(serviceTime) > _pastServiceTimeGrace;
+}
+
+bool _isRelativeServiceTimeKind(String? serviceTimeKind) {
+  return serviceTimeKind?.trim().toLowerCase() == 'relativedepartureminutes';
 }
 
 int _minutes(Object? value) {
@@ -1171,6 +1194,8 @@ const _siriTimeFields = [
   _SiriTimeField('AimedDepartureTime', 'Scheduled'),
   _SiriTimeField('AimedArrivalTime', 'Scheduled'),
 ];
+
+const _pastServiceTimeGrace = Duration(minutes: 2);
 
 const _sfFourthAndKingStops = [
   TransitStopInfo(
