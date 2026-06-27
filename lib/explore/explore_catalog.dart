@@ -29,8 +29,10 @@ grounded venues and POIs because the client can enrich those cards with Google
 photos, distance, rating, price, and open status. Treat imageUrl as a rare
 optional field for broad non-venue inspiration only; omit it by default. Never
 use Unsplash, Pexels, Pixabay, example, placeholder, lorem, picsum, stock, or
-invented image URLs. Never emit imageUrl for exact venues. Never auto-save
-stops; use add actions only when the user taps.
+invented image URLs. Use ExploreHero.placeQuery when the header should depict
+a specific venue, landmark, park, neighborhood anchor, or representative exact
+place through Google Places photos. Never emit imageUrl for exact venues. Never
+auto-save stops; use add actions only when the user taps.
 ''';
 
 final CatalogItem exploreHeroItem = CatalogItem(
@@ -54,6 +56,13 @@ final CatalogItem exploreHeroItem = CatalogItem(
             'stock, or invented URLs.',
       ),
       'imageAltText': S.string(description: 'Short image accessibility label.'),
+      'placeQuery': S.string(
+        description:
+            'Optional Google Places text query for a specific header photo. '
+            'Use for exact venues, landmarks, parks, neighborhood anchors, or '
+            'a representative exact place. Prefer this over imageUrl whenever '
+            'the hero should show an actual place.',
+      ),
       'query': S.string(
         description:
             'Optional follow-up query when the hero itself is tappable.',
@@ -78,6 +87,7 @@ final CatalogItem exploreHeroItem = CatalogItem(
             'A waterfront-first adventure with a flexible snack stop and an '
             'easy sunset branch.',
         'badges': ['Views', 'Food', 'Transit-friendly'],
+        'placeQuery': 'Ferry Building San Francisco',
         'query': 'Build a waterfront snack and views adventure',
       },
     ]),

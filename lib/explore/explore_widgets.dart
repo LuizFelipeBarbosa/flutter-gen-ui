@@ -61,7 +61,7 @@ class ExploreSummaryCard extends StatelessWidget {
   }
 }
 
-class ExploreHero extends StatelessWidget {
+class ExploreHero extends StatefulWidget {
   const ExploreHero({
     required this.title,
     required this.summary,
@@ -69,8 +69,10 @@ class ExploreHero extends StatelessWidget {
     this.badges = const [],
     this.imageUrl,
     this.imageAltText,
+    this.placeQuery,
     this.query,
     this.actionName = 'explore_option',
+    this.client,
     super.key,
   });
 
@@ -82,6 +84,7 @@ class ExploreHero extends StatelessWidget {
       badges: _stringList(json['badges']),
       imageUrl: _nullableString(json['imageUrl']),
       imageAltText: _nullableString(json['imageAltText']),
+      placeQuery: _nullableString(json['placeQuery']),
       query: _nullableString(json['query']),
       actionName: _string(json['actionName'], 'explore_option'),
       onAction: (name, actionContext) {
@@ -101,24 +104,93 @@ class ExploreHero extends StatelessWidget {
   final List<String> badges;
   final String? imageUrl;
   final String? imageAltText;
+  final String? placeQuery;
   final String? query;
   final String actionName;
+  final GooglePlacesClient? client;
   final void Function(String actionName, JsonMap context) onAction;
 
   @override
+  State<ExploreHero> createState() => _ExploreHeroState();
+}
+
+class _ExploreHeroState extends State<ExploreHero> {
+  late final GooglePlacesClient _client = widget.client ?? GooglePlacesClient();
+  _HeroPlaceEnrichment? _enrichment;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadEnrichment());
+  }
+
+  @override
+  void didUpdateWidget(covariant ExploreHero oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.placeQuery != widget.placeQuery) {
+      _enrichment = null;
+      unawaited(_loadEnrichment());
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.client == null) _client.close();
+    super.dispose();
+  }
+
+  Future<void> _loadEnrichment() async {
+    final placeQuery = widget.placeQuery?.trim();
+    if (placeQuery == null || placeQuery.isEmpty) return;
+
+    try {
+      final results = await _client.searchText(
+        query: placeQuery,
+        maxResultCount: 1,
+        regionCode: 'US',
+      );
+      if (!mounted || widget.placeQuery?.trim() != placeQuery) return;
+      if (results.isEmpty) return;
+
+      final place = results.first;
+      setState(() {
+        _enrichment = _HeroPlaceEnrichment(
+          place: place,
+          photoUri: _photoUriFor(place),
+        );
+      });
+    } on Object {
+      if (!mounted || widget.placeQuery?.trim() != placeQuery) return;
+    }
+  }
+
+  Uri? _photoUriFor(PlaceResult place) {
+    final photo = place.primaryPhoto;
+    if (photo == null) return null;
+
+    return _client.photoMediaUri(photo, maxWidthPx: 1200, maxHeightPx: 720);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final actionQuery = query;
+    final actionQuery = widget.query;
+    final placeQuery = widget.placeQuery;
+    final heroImageUrl = placeQuery == null
+        ? widget.imageUrl
+        : _enrichment?.photoUri?.toString();
     final fallbackImageUrl = _fallbackImageUrlFor([
-      title,
-      summary,
-      ...badges,
+      widget.title,
+      widget.summary,
+      ...widget.badges,
     ]);
     final actionContext = <String, Object?>{
-      'title': title,
-      'summary': summary,
+      'title': _enrichment?.place.displayName ?? widget.title,
+      'summary': widget.summary,
       'query': actionQuery,
-      if (badges.isNotEmpty) 'badges': badges,
-      'imageUrl': imageUrl,
+      'placeQuery': placeQuery,
+      if (widget.badges.isNotEmpty) 'badges': widget.badges,
+      if (placeQuery == null) 'imageUrl': widget.imageUrl,
+      if (_enrichment != null) 'place': _enrichment!.place.toJson(),
     }..removeWhere((_, value) => value == null);
 
     final content = ClipRRect(
@@ -130,9 +202,9 @@ class ExploreHero extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             _ExploreNetworkImage(
-              imageUrl: imageUrl,
+              imageUrl: heroImageUrl,
               fallbackImageUrl: fallbackImageUrl,
-              semanticLabel: imageAltText,
+              semanticLabel: widget.imageAltText,
               fallbackIcon: Icons.travel_explore_rounded,
             ),
             DecoratedBox(
@@ -152,17 +224,18 @@ class ExploreHero extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (badges.isNotEmpty)
+                  if (widget.badges.isNotEmpty)
                     Wrap(
                       spacing: 7,
                       runSpacing: 7,
                       children: [
-                        for (final badge in badges) _OverlayChip(label: badge),
+                        for (final badge in widget.badges)
+                          _OverlayChip(label: badge),
                       ],
                     ),
                   const Spacer(),
                   Text(
-                    title,
+                    widget.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: BayHopText.display(
@@ -171,10 +244,10 @@ class ExploreHero extends StatelessWidget {
                       height: 1.05,
                     ),
                   ),
-                  if (summary.isNotEmpty) ...[
+                  if (widget.summary.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
-                      summary,
+                      widget.summary,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: BayHopText.body(
@@ -186,7 +259,8 @@ class ExploreHero extends StatelessWidget {
                   if (actionQuery != null) ...[
                     const SizedBox(height: 12),
                     FilledButton.icon(
-                      onPressed: () => onAction(actionName, actionContext),
+                      onPressed: () =>
+                          widget.onAction(widget.actionName, actionContext),
                       icon: const Icon(Icons.auto_awesome_rounded),
                       label: const Text('Explore'),
                     ),
@@ -205,11 +279,21 @@ class ExploreHero extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => onAction(actionName, actionContext),
+        onTap: () => widget.onAction(widget.actionName, actionContext),
         child: content,
       ),
     );
   }
+}
+
+class _HeroPlaceEnrichment {
+  const _HeroPlaceEnrichment({
+    required this.place,
+    this.photoUri,
+  });
+
+  final PlaceResult place;
+  final Uri? photoUri;
 }
 
 class ExploreImageMosaic extends StatelessWidget {

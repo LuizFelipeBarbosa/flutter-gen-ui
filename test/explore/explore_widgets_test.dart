@@ -57,6 +57,58 @@ void main() {
     expect(find.byIcon(Icons.travel_explore_rounded), findsOneWidget);
   });
 
+  testWidgets('hero uses Google Places photo for placeQuery', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExploreHero(
+            title: 'Photo header',
+            summary: 'A header backed by Google Places.',
+            placeQuery: 'Photo Place San Francisco',
+            client: _PhotoPlacesClient(),
+            onAction: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final imageFinder = find.byType(Image);
+    expect(imageFinder, findsOneWidget);
+
+    final image = tester.widget<Image>(imageFinder);
+    final provider = image.image;
+
+    expect(provider, isA<NetworkImage>());
+    expect((provider as NetworkImage).url, contains('/media'));
+    expect(provider.url, contains('maxWidthPx=1200'));
+  });
+
+  testWidgets('hero with placeQuery does not use imageUrl as exact fallback', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExploreHero(
+            title: 'No photo header',
+            summary: 'A header with no Google photo.',
+            placeQuery: 'No Photo Place San Francisco',
+            imageUrl: 'https://assets.example.test/broad-header.jpg',
+            client: _NoPhotoPlacesClient(),
+            onAction: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Image), findsNothing);
+    expect(find.byIcon(Icons.travel_explore_rounded), findsOneWidget);
+  });
+
   testWidgets('image mosaic filters duplicate generated tiles', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -379,6 +431,30 @@ class _PhotoPlacesClient extends GooglePlacesClient {
           ),
         ],
       ),
+      PlaceResult(
+        id: 'no-photo-place',
+        displayName: 'No Photo Place',
+        formattedAddress: '4 Market Street, San Francisco, CA',
+        types: ['park'],
+      ),
+    ];
+  }
+}
+
+class _NoPhotoPlacesClient extends GooglePlacesClient {
+  _NoPhotoPlacesClient() : super(apiKey: 'test-key');
+
+  @override
+  Future<List<PlaceResult>> searchText({
+    required String query,
+    int maxResultCount = 10,
+    PlaceSearchCircle? locationBias,
+    String? includedType,
+    String? languageCode,
+    String? regionCode,
+    bool? openNow,
+  }) async {
+    return const [
       PlaceResult(
         id: 'no-photo-place',
         displayName: 'No Photo Place',

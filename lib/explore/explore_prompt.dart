@@ -46,6 +46,9 @@ Visual and modular UI rules:
   viewpoints, and POIs, do not emit imageUrl. Use Google Places-backed
   ExplorePlaceSearch or ExploreAdventurePlan stops with placeQuery so the app
   can use Google photos when available.
+- For a header image that should depict an actual place, set
+  ExploreHero.placeQuery to a specific venue, landmark, park, neighborhood
+  anchor, or representative exact place. Do not use imageUrl for that case.
 - For ExplorePlaceSearch, set layout to "list", "carousel", or "mosaic" based
   on the browsing moment. Default to "list" when comparison and details matter.
 - Use priceLabel values like Free, $, $$, $$$, or an explicit estimate like
@@ -108,7 +111,8 @@ Example:
         "component": "ExploreHero",
         "title": "Oakland one-shot afternoon",
         "summary": "A transit-friendly preview with coffee, lake air, culture, and a dinner-friendly finish.",
-        "badges": ["One Shot", "BART + walking", "$-$$"]
+        "badges": ["One Shot", "BART + walking", "$-$$"],
+        "placeQuery": "Lake Merritt Oakland"
       },
       {
         "id": "plan",

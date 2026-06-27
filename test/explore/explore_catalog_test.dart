@@ -43,6 +43,17 @@ void main() {
     expect(schemaJson, contains('mosaic'));
   });
 
+  test('ExploreHero supports Google Places header photos', () {
+    final schemaJson = exploreHeroItem.dataSchema.toJson();
+    final catalogPrompt = _normalizedPrompt(
+      buildExploreCatalog().systemPromptFragments.join('\n'),
+    );
+
+    expect(schemaJson, contains('placeQuery'));
+    expect(exploreSystemPrompt, contains('ExploreHero.placeQuery'));
+    expect(catalogPrompt, contains('ExploreHero.placeQuery'));
+  });
+
   test('ExplorePlaceSearch allows eligible Google Maps POI markers', () {
     final schemaJson = explorePlaceSearchItem.dataSchema.toJson();
 
