@@ -126,6 +126,78 @@ void main() {
       },
     );
 
+    test('serializes TransitJourney JSON with caller metadata', () {
+      const journey = GoogleRoutesTransitJourney(
+        from: 'Coffee',
+        to: 'Museum',
+        departClock: '10:30',
+        arriveClock: '10:52',
+        durationMinutes: 22,
+        changes: 1,
+        fare: r'$2.75',
+        legs: [
+          GoogleRoutesTransitLeg.ride(
+            durationMinutes: 10,
+            lineId: 'regional-bus',
+            from: 'Coffee',
+            to: 'Transfer',
+            stopCount: 4,
+          ),
+          GoogleRoutesTransitLeg.change(
+            durationMinutes: 4,
+            station: 'Transfer',
+          ),
+          GoogleRoutesTransitLeg.ride(
+            durationMinutes: 8,
+            lineId: 'muni-n',
+            from: 'Transfer',
+            to: 'Museum',
+          ),
+        ],
+      );
+
+      expect(
+        journey.toTransitJourneyJson(
+          recommended: false,
+          tag: 'Saved itinerary segment 2',
+        ),
+        {
+          'recommended': false,
+          'tag': 'Saved itinerary segment 2',
+          'from': 'Coffee',
+          'to': 'Museum',
+          'depart': '10:30',
+          'arrive': '10:52',
+          'duration': 22,
+          'changes': 1,
+          'fare': r'$2.75',
+          'crowd': 'Some seats',
+          'legs': [
+            {
+              'type': 'ride',
+              'line': 'regional-bus',
+              'from': 'Coffee',
+              'to': 'Transfer',
+              'mins': 10,
+              'stops': 4,
+            },
+            {
+              'type': 'change',
+              'station': 'Transfer',
+              'mins': 4,
+            },
+            {
+              'type': 'ride',
+              'line': 'muni-n',
+              'from': 'Transfer',
+              'to': 'Museum',
+              'mins': 8,
+            },
+          ],
+        },
+      );
+    });
+
     test('maps Caltrain, Muni, walking, and transfers', () async {
       final client = GoogleRoutesTransitClient(
         apiKey: 'routes-key',
@@ -181,6 +253,65 @@ void main() {
       ]);
       expect(journey.legs[1].durationMinutes, 4);
       expect(journey.toPromptFacts(), contains('1 change'));
+    });
+
+    test('adds change wait between adjacent ride legs', () async {
+      final client = GoogleRoutesTransitClient(
+        apiKey: 'routes-key',
+        httpClient: MockClient(
+          (_) async => _jsonResponse({
+            'routes': [
+              _route(
+                steps: [
+                  _transitStep(
+                    duration: '1200s',
+                    agency: 'Caltrain',
+                    lineName: 'Caltrain Local',
+                    from: '22nd Street',
+                    to: '4th & King',
+                    departureTime: '2026-06-27T09:00:00-07:00',
+                    arrivalTime: '2026-06-27T09:20:00-07:00',
+                  ),
+                  _transitStep(
+                    duration: '480s',
+                    agency: 'SFMTA',
+                    lineName: 'N Judah',
+                    lineShortName: 'N',
+                    from: '4th & King',
+                    to: 'Embarcadero',
+                    departureTime: '2026-06-27T09:26:00-07:00',
+                    arrivalTime: '2026-06-27T09:34:00-07:00',
+                    vehicleType: 'TRAM',
+                  ),
+                ],
+              ),
+            ],
+          }),
+        ),
+      );
+
+      final journey = await client.fetchBestRoute(
+        origin: const LocationCoordinate(latitude: 37.75, longitude: -122.39),
+        destination: const LocationCoordinate(
+          latitude: 37.793,
+          longitude: -122.397,
+        ),
+      );
+
+      expect(journey.durationMinutes, 34);
+      expect(journey.changes, 1);
+      expect(journey.legs.map((leg) => leg.type), [
+        'ride',
+        'change',
+        'ride',
+      ]);
+      expect(journey.legs[1].station, '4th & King');
+      expect(journey.legs[1].durationMinutes, 6);
+      expect(journey.legs.map((leg) => leg.lineId), [
+        'caltrain',
+        '',
+        'muni-n',
+      ]);
     });
 
     test('uses regional fallbacks for unknown transit and bus lines', () async {

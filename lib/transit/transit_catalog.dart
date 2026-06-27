@@ -77,7 +77,15 @@ final CatalogItem transitJourneyItem = CatalogItem(
         minItems: 1,
       ),
     },
-    required: ['from', 'to', 'depart', 'duration', 'changes', 'legs'],
+    required: [
+      'from',
+      'to',
+      'depart',
+      'arrive',
+      'duration',
+      'changes',
+      'legs',
+    ],
   ),
   widgetBuilder: (context) {
     return TransitJourneyCard.fromJson(context.data as JsonMap);
@@ -419,7 +427,13 @@ Prefer the custom Bay Area transit components over generic cards or text:
 - For Muni at 4th & King, use source "511", agency "SF", and stopName "4th & King".
 - Use TransitDepartures for planned estimates only when a live source cannot be resolved. Never fabricate live rows.
 - Use TransitAlert for service status.
-- Use TransitNote only for brief extra context.
+- Use TransitNote for brief extra context and warning fallbacks.
+- For saved-itinerary planner-backed requests, render available segments as
+  TransitJourney cards in the supplied JSON order. Copy depart, arrive,
+  duration, changes, fare when present, and ordered legs exactly. Do not
+  recompute arrive or duration from leg minutes.
+- Render unavailable saved-itinerary segments as TransitNote cards with tone
+  "warning" only. Do not estimate fallback TransitJourney timing.
 
 Line ids must be one of: bart-yellow, bart-orange, bart-green, bart-blue,
 bart-red, bart-beige, muni-j, muni-k, muni-l, muni-m, muni-n, muni-t,

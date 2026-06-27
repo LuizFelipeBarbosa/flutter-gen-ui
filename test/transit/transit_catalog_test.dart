@@ -43,4 +43,42 @@ void main() {
     expect(systemPrompt, contains('TransitPlaceSearch must include'));
     expect(systemPrompt, contains('non-empty query'));
   });
+
+  test('TransitJourney requires arrive while fare remains optional', () {
+    final requiredFields = transitJourneyItem.dataSchema.required;
+
+    expect(
+      requiredFields,
+      containsAll([
+        'component',
+        'from',
+        'to',
+        'depart',
+        'arrive',
+        'duration',
+        'changes',
+        'legs',
+      ]),
+    );
+    expect(requiredFields, isNot(contains('fare')));
+  });
+
+  test('saved-itinerary rules preserve planner-backed segment fields', () {
+    expect(systemPrompt, contains('preserve the'));
+    expect(systemPrompt, contains('segment order'));
+    expect(systemPrompt, contains('Copy depart, arrive, duration, changes'));
+    expect(systemPrompt, contains('Do not recompute arrive or duration'));
+    expect(transitCatalogRules, contains('supplied JSON order'));
+    expect(transitCatalogRules, contains('Copy depart, arrive'));
+    expect(transitCatalogRules, contains('Do not'));
+    expect(transitCatalogRules, contains('recompute arrive or duration'));
+  });
+
+  test('saved-itinerary unavailable segments fall back to warning notes', () {
+    expect(systemPrompt, contains('tone "warning" only'));
+    expect(systemPrompt, contains('Do not render'));
+    expect(systemPrompt, contains('TransitJourney or TransitDepartures'));
+    expect(transitCatalogRules, contains('TransitNote cards with tone'));
+    expect(transitCatalogRules, contains('Do not estimate fallback'));
+  });
 }

@@ -16,12 +16,34 @@ import 'package:genui_template/model/model_client.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
 
-const List<String> _exploreSuggestions = [
-  'Surprise me with a transit-friendly mini adventure',
-  'Build a snack quest with views near me',
-  'Plan a playful Oakland food crawl',
-  'Turn Berkeley by BART into a side-quest',
+const List<_ExploreStarterSuggestion> _exploreSuggestions = [
+  _ExploreStarterSuggestion(
+    title: 'Surprise me with a transit-friendly mini adventure',
+    placeQuery: 'Lake Merritt Oakland',
+  ),
+  _ExploreStarterSuggestion(
+    title: 'Build a snack quest with views near me',
+    placeQuery: 'Ferry Building San Francisco',
+  ),
+  _ExploreStarterSuggestion(
+    title: 'Plan a playful Oakland food crawl',
+    placeQuery: "Swan's Market Oakland",
+  ),
+  _ExploreStarterSuggestion(
+    title: 'Turn Berkeley by BART into a side-quest',
+    placeQuery: 'Berkeley Art Museum and Pacific Film Archive',
+  ),
 ];
+
+class _ExploreStarterSuggestion {
+  const _ExploreStarterSuggestion({
+    required this.title,
+    required this.placeQuery,
+  });
+
+  final String title;
+  final String placeQuery;
+}
 
 class ExplorePage extends StatefulWidget {
   const ExplorePage({
@@ -685,8 +707,9 @@ class _ExploreIntro extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: ExplorerOptionCard(
-              title: suggestion,
-              query: suggestion,
+              title: suggestion.title,
+              query: suggestion.title,
+              placeQuery: suggestion.placeQuery,
               badge: 'Start',
               onAction: (_, context) => onSend(context['query'].toString()),
             ),

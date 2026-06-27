@@ -1359,7 +1359,7 @@ class _AdventureStopVisual extends StatelessWidget {
   }
 }
 
-class ExplorerOptionCard extends StatelessWidget {
+class ExplorerOptionCard extends StatefulWidget {
   const ExplorerOptionCard({
     required this.title,
     required this.query,
@@ -1374,6 +1374,8 @@ class ExplorerOptionCard extends StatelessWidget {
     this.priceLabel,
     this.imageUrl,
     this.imageAltText,
+    this.placeQuery,
+    this.client,
     super.key,
   });
 
@@ -1392,6 +1394,7 @@ class ExplorerOptionCard extends StatelessWidget {
       priceLabel: _nullableString(json['priceLabel']),
       imageUrl: _nullableString(json['imageUrl']),
       imageAltText: _nullableString(json['imageAltText']),
+      placeQuery: _nullableString(json['placeQuery']),
       onAction: (name, actionContext) {
         context.dispatchEvent(
           UserActionEvent(
@@ -1416,35 +1419,105 @@ class ExplorerOptionCard extends StatelessWidget {
   final String? priceLabel;
   final String? imageUrl;
   final String? imageAltText;
+  final String? placeQuery;
+  final GooglePlacesClient? client;
   final void Function(String actionName, JsonMap context) onAction;
 
   @override
+  State<ExplorerOptionCard> createState() => _ExplorerOptionCardState();
+}
+
+class _ExplorerOptionCardState extends State<ExplorerOptionCard> {
+  late final GooglePlacesClient _client = widget.client ?? GooglePlacesClient();
+  _OptionPlaceEnrichment? _enrichment;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadEnrichment());
+  }
+
+  @override
+  void didUpdateWidget(covariant ExplorerOptionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.placeQuery != widget.placeQuery) {
+      _enrichment = null;
+      unawaited(_loadEnrichment());
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.client == null) _client.close();
+    super.dispose();
+  }
+
+  Future<void> _loadEnrichment() async {
+    final placeQuery = widget.placeQuery?.trim();
+    if (placeQuery == null || placeQuery.isEmpty) return;
+
+    try {
+      final results = await _client.searchText(
+        query: placeQuery,
+        maxResultCount: 1,
+        regionCode: 'US',
+      );
+      if (!mounted || widget.placeQuery?.trim() != placeQuery) return;
+      if (results.isEmpty) return;
+
+      final place = results.first;
+      setState(() {
+        _enrichment = _OptionPlaceEnrichment(
+          place: place,
+          photoUri: _photoUriFor(place),
+        );
+      });
+    } on Object {
+      if (!mounted || widget.placeQuery?.trim() != placeQuery) return;
+    }
+  }
+
+  Uri? _photoUriFor(PlaceResult place) {
+    final photo = place.primaryPhoto;
+    if (photo == null) return null;
+
+    return _client.photoMediaUri(photo, maxWidthPx: 320);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final durationLabel = switch (durationMinutes) {
+    final placeQuery = widget.placeQuery?.trim();
+    final hasPlaceQuery = placeQuery != null && placeQuery.isNotEmpty;
+    final imageUrl = hasPlaceQuery
+        ? _enrichment?.photoUri?.toString()
+        : widget.imageUrl;
+    final durationLabel = switch (widget.durationMinutes) {
       final minutes? when minutes > 0 => '$minutes min',
       _ => null,
     };
     final details = [
-      ?distanceLabel,
-      ?priceLabel,
+      ?widget.distanceLabel,
+      ?widget.priceLabel,
       ?durationLabel,
     ];
     final actionContext = <String, Object?>{
-      'title': title,
-      'query': query,
-      'description': description.isEmpty ? null : description,
-      'category': category ?? badge,
-      'durationMinutes': durationMinutes,
-      'distanceLabel': distanceLabel,
-      'priceLabel': priceLabel,
-      'imageUrl': imageUrl,
+      'title': _enrichment?.place.displayName ?? widget.title,
+      'query': widget.query,
+      'description': widget.description.isEmpty ? null : widget.description,
+      'category': widget.category ?? widget.badge,
+      'durationMinutes': widget.durationMinutes,
+      'distanceLabel': widget.distanceLabel,
+      'priceLabel': widget.priceLabel,
+      'placeQuery': hasPlaceQuery ? placeQuery : null,
+      if (!hasPlaceQuery) 'imageUrl': widget.imageUrl,
+      if (_enrichment != null) 'place': _enrichment!.place.toJson(),
     }..removeWhere((_, value) => value == null);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => onAction(actionName, actionContext),
+        onTap: () => widget.onAction(widget.actionName, actionContext),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(15),
@@ -1454,14 +1527,16 @@ class ExplorerOptionCard extends StatelessWidget {
             children: [
               _ExplorerOptionVisual(
                 imageUrl: imageUrl,
-                imageAltText: imageAltText,
-                fallbackImageUrl: _fallbackImageUrlFor([
-                  title,
-                  subtitle,
-                  description,
-                  badge,
-                  category,
-                ]),
+                imageAltText: widget.imageAltText,
+                fallbackImageUrl: hasPlaceQuery
+                    ? null
+                    : _fallbackImageUrlFor([
+                        widget.title,
+                        widget.subtitle,
+                        widget.description,
+                        widget.badge,
+                        widget.category,
+                      ]),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -1472,7 +1547,7 @@ class ExplorerOptionCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            title,
+                            widget.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: BayHopText.body(
@@ -1481,16 +1556,16 @@ class ExplorerOptionCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (badge != null) ...[
+                        if (widget.badge != null) ...[
                           const SizedBox(width: 8),
-                          BayHopChip(label: badge!),
+                          BayHopChip(label: widget.badge!),
                         ],
                       ],
                     ),
-                    if (subtitle.isNotEmpty) ...[
+                    if (widget.subtitle.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
-                        subtitle,
+                        widget.subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: BayHopText.body(
@@ -1500,10 +1575,10 @@ class ExplorerOptionCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                    if (description.isNotEmpty) ...[
+                    if (widget.description.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
-                        description,
+                        widget.description,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: BayHopText.body(
@@ -1537,6 +1612,16 @@ class ExplorerOptionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OptionPlaceEnrichment {
+  const _OptionPlaceEnrichment({
+    required this.place,
+    this.photoUri,
+  });
+
+  final PlaceResult place;
+  final Uri? photoUri;
 }
 
 class _ExplorerOptionVisual extends StatelessWidget {

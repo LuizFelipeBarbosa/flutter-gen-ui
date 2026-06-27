@@ -206,13 +206,13 @@ void main() {
       ),
     );
 
-    expect(find.text('38'), findsOneWidget);
-    expect(find.text('11:12 → 11:50'), findsOneWidget);
+    expect(find.text('58'), findsOneWidget);
+    expect(find.text('11:12 → 12:10'), findsOneWidget);
     expect(find.textContaining('Arrive Oakland Airport'), findsOneWidget);
     expect(find.textContaining('1 stops · 9 min'), findsOneWidget);
   });
 
-  testWidgets('TransitJourneyCard computes arrival from leg minutes', (
+  testWidgets('TransitJourneyCard preserves planner timing over leg totals', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -242,8 +242,74 @@ void main() {
       ),
     );
 
+    expect(find.text('20'), findsOneWidget);
+    expect(find.text('9:05 → 9:25'), findsOneWidget);
+  });
+
+  testWidgets('TransitJourneyCard falls back to leg timing when absent', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitJourneyCard.fromJson(const {
+          'recommended': true,
+          'tag': 'Direct',
+          'from': 'Downtown Berkeley',
+          'to': 'SFO',
+          'depart': '9:05',
+          'changes': 0,
+          'fare': '11.95',
+          'crowd': 'Some seats',
+          'legs': [
+            {
+              'type': 'ride',
+              'line': 'bart-red',
+              'from': 'Downtown Berkeley',
+              'to': 'SFO',
+              'mins': 58,
+              'stops': 18,
+            },
+          ],
+        }),
+      ),
+    );
+
     expect(find.text('58'), findsOneWidget);
     expect(find.text('9:05 → 10:03'), findsOneWidget);
+  });
+
+  testWidgets('TransitJourneyCard treats placeholder arrival as missing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitJourneyCard.fromJson(const {
+          'recommended': true,
+          'tag': 'Direct',
+          'from': 'Downtown Berkeley',
+          'to': 'SFO',
+          'depart': '9:05',
+          'arrive': '--:--',
+          'changes': 0,
+          'fare': '11.95',
+          'crowd': 'Some seats',
+          'legs': [
+            {
+              'type': 'ride',
+              'line': 'bart-red',
+              'from': 'Downtown Berkeley',
+              'to': 'SFO',
+              'mins': 58,
+              'stops': 18,
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(find.text('58'), findsOneWidget);
+    expect(find.text('9:05 → 10:03'), findsOneWidget);
+    expect(find.textContaining('--:--'), findsNothing);
   });
 
   testWidgets('TransitJourneyCard wraps computed arrival after midnight', (
@@ -257,8 +323,6 @@ void main() {
           'from': 'Origin',
           'to': 'Destination',
           'depart': '23:50',
-          'arrive': '23:55',
-          'duration': 5,
           'changes': 0,
           'fare': '2.75',
           'crowd': 'Quiet',

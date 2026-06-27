@@ -109,6 +109,99 @@ void main() {
     expect(find.byIcon(Icons.travel_explore_rounded), findsOneWidget);
   });
 
+  testWidgets('option card uses Google Places photo for placeQuery', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExplorerOptionCard(
+            title: 'Playful Oakland food crawl',
+            query: 'Plan a playful Oakland food crawl',
+            badge: 'Start',
+            placeQuery: "Swan's Market Oakland",
+            imageUrl: 'https://assets.example.test/ignored.jpg',
+            client: _PhotoPlacesClient(),
+            onAction: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final imageFinder = find.byType(Image);
+    expect(imageFinder, findsOneWidget);
+
+    final image = tester.widget<Image>(imageFinder);
+    final provider = image.image;
+
+    expect(provider, isA<NetworkImage>());
+    expect((provider as NetworkImage).url, contains('/media'));
+    expect(provider.url, contains('maxWidthPx=320'));
+  });
+
+  testWidgets('option card with placeQuery does not use imageUrl fallback', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExplorerOptionCard(
+            title: 'No photo option',
+            query: 'Explore no photo option',
+            placeQuery: 'No Photo Place San Francisco',
+            imageUrl: 'https://assets.example.test/broad-option.jpg',
+            client: _NoPhotoPlacesClient(),
+            onAction: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Image), findsNothing);
+    expect(find.byIcon(Icons.explore_rounded), findsOneWidget);
+  });
+
+  testWidgets(
+    'option card keeps query as action text with placeQuery metadata',
+    (
+      tester,
+    ) async {
+      String? actionName;
+      Map<String, Object?>? actionContext;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ExplorerOptionCard(
+              title: 'Playful Oakland food crawl',
+              query: 'Plan a playful Oakland food crawl',
+              badge: 'Start',
+              placeQuery: "Swan's Market Oakland",
+              imageUrl: 'https://assets.example.test/ignored.jpg',
+              client: _PhotoPlacesClient(),
+              onAction: (name, context) {
+                actionName = name;
+                actionContext = context;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.tap(find.text('Playful Oakland food crawl'));
+
+      expect(actionName, 'explore_option');
+      expect(actionContext?['query'], 'Plan a playful Oakland food crawl');
+      expect(actionContext?['placeQuery'], "Swan's Market Oakland");
+      expect(actionContext?.containsKey('imageUrl'), isFalse);
+    },
+  );
+
   testWidgets('image mosaic uses Google Places photo for placeQuery tiles', (
     tester,
   ) async {

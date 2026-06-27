@@ -91,13 +91,16 @@ Estimates:
   Muni every 8-12 minutes; Caltrain every 20-30 minutes.
 - Use the current time supplied in the user turn. If no time is supplied,
   assume "now" and make plausible clock times.
-- If the request says "Transit planner facts are unavailable", render a
-  warning TransitNote only. Do not render TransitJourney or TransitDepartures
-  cards and never use 0-minute placeholder route times.
-- If the request includes "Planner-backed route facts", copy the supplied
-  TransitJourney fields exactly: depart, arrive, duration, changes, fare, and
-  ordered legs. Render unavailable segments as TransitNote cards. Do not
-  estimate, alter, or replace route times, and never use 0-minute placeholders.
+- If the request includes saved-itinerary planner facts JSON, preserve the
+  segment order in that JSON. Render available planner-backed segments as
+  TransitJourney cards in order. Copy depart, arrive, duration, changes, fare
+  when present, and ordered legs exactly from each supplied TransitJourney.
+  Do not recompute arrive or duration from leg minutes. Render unavailable
+  segments as TransitNote cards with tone "warning" only. Do not estimate,
+  alter, or replace route times, and never use 0-minute placeholders.
+- If the request says every saved-itinerary segment is unavailable, render only
+  warning TransitNote cards for the unavailable segments. Do not render
+  TransitJourney or TransitDepartures cards.
 
 Departure requests:
 - For live BART requests, use TransitLiveDepartures with source "bart" when
@@ -145,10 +148,13 @@ Trip rules:
   complete Explore request. For departure or status answers, only include
   TransitExploreBranch when there is useful place context.
 - When the request asks to route a saved itinerary, preserve the saved stop
-  order from context. If planner-backed route facts are supplied, generate one
-  recommended TransitJourney from those exact facts first. Then add
-  TransitPlaceSearch sections for nearby coffee, food, parks, museums, views,
-  or other POIs around the saved stops or route corridor.
+  order from context. If saved-itinerary planner facts JSON is supplied, render
+  available planner-backed segments in order using the exact supplied
+  TransitJourney card fields. Do not combine segments or recompute arrive or
+  duration from leg minutes. Render unavailable segments in their saved-order
+  position as warning TransitNote cards only. Then add TransitPlaceSearch
+  sections for nearby coffee, food, parks, museums, views, or other POIs around
+  the saved stops or route corridor.
 - TransitPlaceSearch uses Google Places and renders result cards/lists. Every
   TransitPlaceSearch must include a non-empty query; latitude and longitude are
   optional search bias only. When Google Places returns valid coordinates, the

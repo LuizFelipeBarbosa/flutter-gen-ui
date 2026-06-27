@@ -1476,12 +1476,15 @@ class TransitJourney {
     final legs = _normalizeOakConnectorLegs(rawLegs);
     final legDuration = legs.fold<int>(0, (total, leg) => total + leg.minutes);
     final depart = _string(json['depart'], '--:--');
-    final duration = legDuration > 0
-        ? legDuration
-        : _int(json['duration'], fallback: legDuration);
-    final arrive = legDuration > 0
-        ? _formatClock(_parseClock(depart) + legDuration)
-        : _string(json['arrive']);
+    final suppliedDuration = _int(json['duration']);
+    final duration = suppliedDuration > 0 ? suppliedDuration : legDuration;
+
+    var arrive = _string(json['arrive']);
+    if (!_hasUsableArrival(arrive)) {
+      arrive = legDuration > 0
+          ? _formatClock(_parseClock(depart) + legDuration)
+          : '';
+    }
 
     return TransitJourney(
       from: _string(json['from'], 'Origin'),
@@ -1549,6 +1552,11 @@ class TransitJourney {
 }
 
 enum TransitLegType { ride, change, walk }
+
+bool _hasUsableArrival(String arrive) {
+  final normalized = arrive.trim();
+  return normalized.isNotEmpty && normalized != '--:--';
+}
 
 class TransitLeg {
   const TransitLeg({

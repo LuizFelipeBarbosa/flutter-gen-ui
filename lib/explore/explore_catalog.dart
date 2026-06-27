@@ -33,8 +33,10 @@ invented image URLs. Use ExploreHero.placeQuery when the header should depict
 a specific venue, landmark, park, neighborhood anchor, or representative exact
 place through Google Places photos. Use ExploreImageMosaic images[].placeQuery
 when a bento tile should show an actual venue, landmark, park, neighborhood
-anchor, or representative exact place. Never emit imageUrl for exact venues.
-Never auto-save stops; use add actions only when the user taps.
+anchor, or representative exact place. Use ExplorerOptionCard.placeQuery when
+a follow-up branch card should show a representative actual place. Never emit
+imageUrl for exact venues. Never auto-save stops; use add actions only when the
+user taps.
 ''';
 
 final CatalogItem exploreHeroItem = CatalogItem(
@@ -268,12 +270,20 @@ final CatalogItem explorerOptionCardItem = CatalogItem(
         description:
             'Rare optional HTTPS image URL for broad city, neighborhood, or '
             'vibe inspiration only. Omit by default. Prefer '
-            'ExplorePlaceSearch for exact venue photos. Never use Unsplash, '
-            'Pexels, Pixabay, example, placeholder, lorem, picsum, stock, or '
-            'invented URLs.',
+            'placeQuery or ExplorePlaceSearch for actual place photos. Never '
+            'use when placeQuery is present. Never use Unsplash, Pexels, '
+            'Pixabay, example, placeholder, lorem, picsum, stock, or invented '
+            'URLs.',
       ),
       'imageAltText': S.string(
         description: 'Short accessibility label for imageUrl.',
+      ),
+      'placeQuery': S.string(
+        description:
+            'Optional Google Places text query for an actual representative '
+            'photo on this branch card. Keep query as the follow-up action '
+            'request. Prefer this over imageUrl when the option should show a '
+            'real place.',
       ),
       'category': S.string(description: 'Optional category.'),
     },
@@ -293,6 +303,7 @@ final CatalogItem explorerOptionCardItem = CatalogItem(
         'badge': 'Food',
         'priceLabel': r'$',
         'durationMinutes': 150,
+        'placeQuery': 'Mission Dolores Park San Francisco',
         'query': 'Build a Mission food crawl',
       },
     ]),

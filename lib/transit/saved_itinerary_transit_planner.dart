@@ -28,7 +28,7 @@ class SavedItineraryTransitPlanner {
 
     final segments = <SavedItineraryTransitSegment>[];
     final notes = <String>[];
-    var nextDeparture = departureTime;
+    DateTime? nextDeparture = departureTime;
 
     if (currentLocation == null) {
       notes.add(
@@ -43,11 +43,13 @@ class SavedItineraryTransitPlanner {
           SavedItineraryTransitSegment.unavailable(
             fromName: 'Current location',
             toName: firstStop.title,
+            requestedDepartureTime: nextDeparture,
             note:
                 'Missing coordinates for ${firstStop.title}; no '
                 'data-backed transit time is available.',
           ),
         );
+        nextDeparture = null;
       } else {
         final segment = await _planSegment(
           fromName: 'Current location',
@@ -64,9 +66,11 @@ class SavedItineraryTransitPlanner {
     for (var index = 0; index < stops.length - 1; index++) {
       final fromStop = stops[index];
       final toStop = stops[index + 1];
-      nextDeparture = nextDeparture.add(
-        Duration(minutes: fromStop.durationMinutes),
-      );
+      if (nextDeparture != null) {
+        nextDeparture = nextDeparture.add(
+          Duration(minutes: fromStop.durationMinutes),
+        );
+      }
 
       final origin = _coordinateFor(fromStop);
       final destination = _coordinateFor(toStop);
@@ -75,7 +79,20 @@ class SavedItineraryTransitPlanner {
           SavedItineraryTransitSegment.unavailable(
             fromName: fromStop.title,
             toName: toStop.title,
+            requestedDepartureTime: nextDeparture,
             note: _missingCoordinateNote(fromStop, toStop),
+          ),
+        );
+        nextDeparture = null;
+        continue;
+      }
+
+      if (nextDeparture == null) {
+        segments.add(
+          SavedItineraryTransitSegment.unavailable(
+            fromName: fromStop.title,
+            toName: toStop.title,
+            note: _unknownDepartureNote(fromStop.title, toStop.title),
           ),
         );
         continue;
@@ -153,6 +170,15 @@ class SavedItineraryTransitPlanner {
         requestedDepartureTime: departureTime,
         note: '${error.message}. Do not fabricate times for this segment.',
       );
+    } on Object catch (error) {
+      return SavedItineraryTransitSegment.unavailable(
+        fromName: fromName,
+        toName: toName,
+        requestedDepartureTime: departureTime,
+        note:
+            'Transit planner request failed unexpectedly: $error. '
+            'Do not fabricate times for this segment.',
+      );
     }
   }
 }
@@ -183,6 +209,15 @@ class SavedItineraryTransitPlan {
     return segments.any((segment) => segment.available);
   }
 
+  Map<String, Object?> toStructuredJson() {
+    final json = <String, Object?>{
+      'status': status.name,
+      'segments': _structuredSegments(),
+    };
+    if (notes.isNotEmpty) json['notes'] = notes;
+    return json;
+  }
+
   String toPromptContext() {
     final buffer = StringBuffer(
       'Saved itinerary transit planner status: ${status.name}. ',
@@ -196,6 +231,20 @@ class SavedItineraryTransitPlan {
       buffer.write('${index + 1}. ${segments[index].toPromptFacts()}');
     }
     return buffer.toString().trim();
+  }
+
+  List<Map<String, Object?>> _structuredSegments() {
+    final firstAvailableIndex = segments.indexWhere(
+      (segment) => segment.available,
+    );
+
+    return [
+      for (var index = 0; index < segments.length; index++)
+        segments[index].toStructuredJson(
+          index: index + 1,
+          recommended: index == firstAvailableIndex,
+        ),
+    ];
   }
 }
 
@@ -221,6 +270,38 @@ class SavedItineraryTransitSegment {
   final String? note;
 
   bool get available => journey != null;
+
+  Map<String, Object?> toStructuredJson({
+    required int index,
+    required bool recommended,
+  }) {
+    final segment = {
+      'index': index,
+      'status': available ? 'available' : 'unavailable',
+      'from': fromName,
+      'to': toName,
+      'requestedDeparture': requestedDepartureTime == null
+          ? null
+          : _formatDateTime(requestedDepartureTime!),
+      'component': available ? 'TransitJourney' : 'TransitNote',
+    };
+
+    final journey = this.journey;
+    if (journey == null) {
+      return {
+        ...segment,
+        'note': note,
+      }..removeWhere((_, value) => value == null || value == '');
+    }
+
+    return {
+      ...segment,
+      'journey': journey.toTransitJourneyJson(
+        recommended: recommended,
+        tag: 'Saved itinerary segment $index',
+      ),
+    }..removeWhere((_, value) => value == null || value == '');
+  }
 
   String toPromptFacts() {
     final routeLabel = '$fromName to $toName';
@@ -252,7 +333,12 @@ String _missingCoordinateNote(ItineraryStop fromStop, ItineraryStop toStop) {
       'transit time is available.';
 }
 
-DateTime _nextDepartureAfterTravel(
+String _unknownDepartureNote(String fromName, String toName) {
+  return 'Previous segment timing is unavailable, so no data-backed departure '
+      'time is available for $fromName to $toName.';
+}
+
+DateTime? _nextDepartureAfterTravel(
   SavedItineraryTransitSegment segment,
   DateTime fallbackDeparture,
 ) {
@@ -262,7 +348,7 @@ DateTime _nextDepartureAfterTravel(
   if (duration != null) {
     return fallbackDeparture.add(Duration(minutes: duration));
   }
-  return fallbackDeparture;
+  return null;
 }
 
 String _formatDateTime(DateTime value) {

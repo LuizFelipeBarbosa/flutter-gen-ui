@@ -65,6 +65,18 @@ void main() {
     expect(catalogPrompt, contains('ExploreImageMosaic images[].placeQuery'));
   });
 
+  test('ExplorerOptionCard supports Google Places branch photos', () {
+    final schemaJson = explorerOptionCardItem.dataSchema.toJson();
+    final catalogPrompt = _normalizedPrompt(
+      buildExploreCatalog().systemPromptFragments.join('\n'),
+    );
+
+    expect(schemaJson, contains('placeQuery'));
+    expect(exploreSystemPrompt, contains('ExplorerOptionCard'));
+    expect(exploreSystemPrompt, contains('placeQuery'));
+    expect(catalogPrompt, contains('ExplorerOptionCard.placeQuery'));
+  });
+
   test('ExplorePlaceSearch allows eligible Google Maps POI markers', () {
     final schemaJson = explorePlaceSearchItem.dataSchema.toJson();
 
@@ -108,6 +120,7 @@ void main() {
       contains('ExploreAdventurePlan stops with placeQuery'),
     );
     expect(systemPrompt, contains('images[].placeQuery'));
+    expect(systemPrompt, contains('ExplorerOptionCard'));
     expect(systemPrompt, contains('Google photos'));
     expect(catalogPrompt, contains('Google Places-backed ExplorePlaceSearch'));
     expect(catalogPrompt, contains('Google photos'));

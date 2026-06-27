@@ -162,10 +162,13 @@ class GoogleRoutesTransitJourney {
   final DateTime? departureDateTime;
   final DateTime? arrivalDateTime;
 
-  Map<String, Object?> toTransitJourneyJson() {
+  Map<String, Object?> toTransitJourneyJson({
+    bool recommended = true,
+    String tag = 'Planner-backed',
+  }) {
     return {
-      'recommended': true,
-      'tag': 'Planner-backed',
+      'recommended': recommended,
+      'tag': tag,
       'from': from,
       'to': to,
       'depart': departClock,
@@ -326,6 +329,7 @@ GoogleRoutesTransitJourney _journeyFromResponse(
   final legs = <GoogleRoutesTransitLeg>[];
   DateTime? firstTransitDeparture;
   DateTime? lastTransitArrival;
+  DateTime? previousRideArrival;
   var leadingWalkMinutes = 0;
   var trailingWalkMinutes = 0;
   var hasSeenRide = false;
@@ -334,16 +338,21 @@ GoogleRoutesTransitJourney _journeyFromResponse(
     for (final step in _mapList(routeLeg['steps'])) {
       final parsed = _legFromStep(step);
       if (parsed == null) continue;
-      legs.add(parsed.leg);
-
       if (parsed.leg.type == 'ride') {
+        _addTransferWaitIfNeeded(legs, parsed, previousRideArrival);
+        legs.add(parsed.leg);
         firstTransitDeparture ??= parsed.departureTime;
         lastTransitArrival = parsed.arrivalTime ?? lastTransitArrival;
+        previousRideArrival = parsed.arrivalTime;
         hasSeenRide = true;
         trailingWalkMinutes = 0;
       } else if (!hasSeenRide) {
+        legs.add(parsed.leg);
+        previousRideArrival = null;
         leadingWalkMinutes += parsed.leg.durationMinutes;
       } else {
+        legs.add(parsed.leg);
+        previousRideArrival = null;
         trailingWalkMinutes += parsed.leg.durationMinutes;
       }
     }
@@ -375,6 +384,37 @@ GoogleRoutesTransitJourney _journeyFromResponse(
     departureDateTime: departureDateTime,
     arrivalDateTime: arrivalDateTime,
   );
+}
+
+void _addTransferWaitIfNeeded(
+  List<GoogleRoutesTransitLeg> legs,
+  _ParsedTransitLeg nextRide,
+  DateTime? previousRideArrival,
+) {
+  if (legs.isEmpty || legs.last.type != 'ride') return;
+
+  final previousRide = legs.last;
+  final waitMinutes = _minutesBetween(
+    previousRideArrival,
+    nextRide.departureTime,
+  );
+  if (waitMinutes == null || waitMinutes <= 0) return;
+
+  legs.add(
+    GoogleRoutesTransitLeg.change(
+      durationMinutes: waitMinutes,
+      station: _transferStation(previousRide, nextRide.leg),
+    ),
+  );
+}
+
+String _transferStation(
+  GoogleRoutesTransitLeg previousRide,
+  GoogleRoutesTransitLeg nextRide,
+) {
+  if (nextRide.from.isNotEmpty) return nextRide.from;
+  if (previousRide.to.isNotEmpty) return previousRide.to;
+  return 'transfer stop';
 }
 
 int _routeDurationMinutes(

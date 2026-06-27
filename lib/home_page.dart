@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -206,8 +207,15 @@ class _HomePageState extends State<HomePage> {
     return [
       _locationContextForModel(),
       widget.itineraryController?.toTransitPromptContext() ??
+          _handoffTransitPromptContext() ??
           'Saved itinerary: unavailable.',
     ].join(' ');
+  }
+
+  String? _handoffTransitPromptContext() {
+    final stops = widget.routeHandoffController?.value?.stops;
+    if (stops == null || stops.isEmpty) return null;
+    return _transitPromptContextFor(stops);
   }
 
   String _locationContextForModel() {
@@ -220,19 +228,31 @@ class _HomePageState extends State<HomePage> {
     String query,
     SavedItineraryTransitPlan plan,
   ) {
+    final structuredFacts = _prettyJson(plan.toStructuredJson());
+    final statusAndNotes = _plannerStatusAndNotes(plan);
+
     if (!plan.hasAvailableSegments) {
-      return '$query Transit planner facts are unavailable: '
-          '${plan.toPromptContext()} Render a warning TransitNote only. '
+      return '$query\n'
+          '$statusAndNotes\n'
+          'Ordered saved-itinerary planner facts JSON:\n'
+          '$structuredFacts\n'
+          'Transit planner facts are unavailable for every segment. Render '
+          'each unavailable segment as a TransitNote with tone "warning" only. '
           'Do not render TransitJourney or TransitDepartures cards for this '
           'request. Never use 0-minute placeholder route times.';
     }
 
-    return '$query Planner-backed route facts: ${plan.toPromptContext()} '
-        'Use these planner-backed TransitJourney fields exactly when '
-        'available. '
-        'Only render TransitJourney cards for available planner-backed '
-        'segments with nonzero leg minutes. For unavailable segments, render '
-        'a TransitNote instead of estimating. Never use 0-minute placeholder '
+    return '$query\n'
+        '$statusAndNotes\n'
+        'Ordered saved-itinerary planner facts JSON:\n'
+        '$structuredFacts\n'
+        'Render available planner-backed segments in the JSON order as '
+        'TransitJourney cards. Copy each TransitJourney field exactly, '
+        'including depart, arrive, duration, changes, fare when present, and '
+        'the ordered legs; do not recompute arrive or duration from leg '
+        'minutes. Render unavailable segments as TransitNote cards with tone '
+        '"warning" only, in their saved-itinerary position. Do not estimate, '
+        'alter, or replace route times, and never use 0-minute placeholder '
         'route times.';
   }
 
@@ -308,6 +328,28 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+String _plannerStatusAndNotes(SavedItineraryTransitPlan plan) {
+  final notes = plan.notes.isEmpty ? 'none' : plan.notes.join(' ');
+  return 'Saved itinerary transit planner status: ${plan.status.name}. '
+      'Planner notes: $notes.';
+}
+
+String _prettyJson(Map<String, Object?> value) {
+  return const JsonEncoder.withIndent('  ').convert(value);
+}
+
+String _transitPromptContextFor(List<ItineraryStop> stops) {
+  final rows = <String>[];
+  for (var i = 0; i < stops.length; i++) {
+    rows.add(stops[i].toTransitPromptRow(i + 1));
+  }
+  return 'Saved itinerary stops in order: ${rows.join('; ')}. When the user '
+      'asks to route the saved itinerary, preserve this order, use saved '
+      'coordinates as routing and map context, and use TransitPlaceSearch for '
+      'Google Places POIs so coordinate-bearing results can appear as Google '
+      'Map markers.';
 }
 
 class _TransitSheetScrollBehavior extends MaterialScrollBehavior {

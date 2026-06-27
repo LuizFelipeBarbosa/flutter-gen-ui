@@ -53,6 +53,10 @@ Visual and modular UI rules:
   images[].placeQuery to a specific venue, landmark, park, neighborhood anchor,
   or representative exact place. Keep query as the follow-up action request.
   Do not emit imageUrl when placeQuery is present.
+- For ExplorerOptionCard follow-up branch cards that should have an image, set
+  placeQuery to a representative actual venue, landmark, park, neighborhood
+  anchor, or POI. Keep query as the follow-up action request. Do not emit
+  imageUrl when placeQuery is present.
 - For ExplorePlaceSearch, set layout to "list", "carousel", or "mosaic" based
   on the browsing moment. Default to "list" when comparison and details matter.
 - Use priceLabel values like Free, $, $$, $$$, or an explicit estimate like

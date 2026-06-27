@@ -126,10 +126,27 @@ void main() {
         );
         expect(
           modelClient.history.single.text,
-          contains('Planner-backed route facts'),
+          contains('Saved itinerary transit planner status: available'),
         );
-        expect(modelClient.history.single.text, contains('depart 9:30'));
-        expect(modelClient.history.single.text, contains('arrive 9:42'));
+        expect(
+          modelClient.history.single.text,
+          contains('Ordered saved-itinerary planner facts JSON'),
+        );
+        expect(
+          modelClient.history.single.text,
+          contains('"status": "available"'),
+        );
+        expect(
+          modelClient.history.single.text,
+          contains('"component": "TransitJourney"'),
+        );
+        expect(modelClient.history.single.text, contains('"depart": "9:30"'));
+        expect(modelClient.history.single.text, contains('"arrive": "9:42"'));
+        expect(modelClient.history.single.text, contains('"duration": 12'));
+        expect(
+          modelClient.history.single.text,
+          contains('Copy each TransitJourney field exactly'),
+        );
       },
     );
 
@@ -180,10 +197,6 @@ void main() {
             child: HomePage(
               locationController: locationController,
               itineraryController: itinerary,
-              currentTime: _testNow,
-              transitPlanner: SavedItineraryTransitPlanner(
-                client: _FakeTransitRouteClient(),
-              ),
               modelClientBuilder: ({required systemPrompt}) {
                 return modelClient = _CapturingModelClient(
                   systemPrompt: systemPrompt,
@@ -354,6 +367,10 @@ void main() {
           child: HomePage(
             locationController: locationController,
             itineraryController: itinerary,
+            currentTime: _testNow,
+            transitPlanner: SavedItineraryTransitPlanner(
+              client: _FakeTransitRouteClient(),
+            ),
             modelClientBuilder: ({required systemPrompt}) {
               return modelClient = _CapturingModelClient(
                 systemPrompt: systemPrompt,
@@ -380,7 +397,82 @@ void main() {
       );
       expect(modelClient.history.single.text, contains('Coffee'));
       expect(modelClient.history.single.text, contains('Museum'));
+      expect(
+        modelClient.history.single.text,
+        contains('Saved itinerary transit planner status: available'),
+      );
+      expect(
+        modelClient.history.single.text,
+        contains('"component": "TransitJourney"'),
+      );
+      expect(modelClient.history.single.text, contains(r'"fare": "$2.75"'));
     });
+
+    testWidgets(
+      'unavailable saved-itinerary segments use warning note fallback',
+      (tester) async {
+        late final _CapturingModelClient modelClient;
+
+        final locationController = UserLocationController();
+        final itinerary = ItineraryController()
+          ..replaceAll(const [
+            ItineraryStop(
+              localId: 'stop-1',
+              title: 'Coffee',
+              durationMinutes: 30,
+            ),
+            ItineraryStop(
+              localId: 'stop-2',
+              title: 'Museum',
+              latitude: 37.785,
+              longitude: -122.401,
+            ),
+          ]);
+        addTearDown(locationController.dispose);
+        addTearDown(itinerary.dispose);
+
+        await tester.pumpWidget(
+          _TestApp(
+            child: HomePage(
+              locationController: locationController,
+              itineraryController: itinerary,
+              currentTime: _testNow,
+              transitPlanner: SavedItineraryTransitPlanner(
+                client: _FakeTransitRouteClient(),
+              ),
+              modelClientBuilder: ({required systemPrompt}) {
+                return modelClient = _CapturingModelClient(
+                  systemPrompt: systemPrompt,
+                );
+              },
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Route'));
+        await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
+
+        final prompt = modelClient.history.single.text;
+
+        expect(
+          prompt,
+          contains('Saved itinerary transit planner status: unavailable'),
+        );
+        expect(prompt, contains('"status": "unavailable"'));
+        expect(prompt, contains('"component": "TransitNote"'));
+        expect(prompt, contains('"note":'));
+        expect(prompt, contains('Missing coordinates for Coffee'));
+        expect(
+          prompt,
+          contains(
+            'Render each unavailable segment as a TransitNote with tone '
+            '"warning" only',
+          ),
+        );
+        expect(prompt, isNot(contains('"component": "TransitJourney"')));
+      },
+    );
 
     testWidgets('route handoff sends a fresh route request', (tester) async {
       late final _CapturingModelClient modelClient;
@@ -423,7 +515,15 @@ void main() {
         modelClient.history.single.text,
         contains('Request: Route me to this saved itinerary stop'),
       );
+      expect(
+        modelClient.history.single.text,
+        contains('Saved itinerary stops in order'),
+      );
       expect(modelClient.history.single.text, contains('Ferry Building'));
+      expect(
+        modelClient.history.single.text,
+        isNot(contains('Saved itinerary: unavailable')),
+      );
       expect(
         modelClient.history.single.text,
         contains('Current location is unavailable'),
@@ -434,11 +534,15 @@ void main() {
       );
       expect(
         modelClient.history.single.text,
+        contains('Ordered saved-itinerary planner facts JSON'),
+      );
+      expect(
+        modelClient.history.single.text,
         contains('Do not render TransitJourney'),
       );
       expect(
         modelClient.history.single.text,
-        isNot(contains('Planner-backed route facts')),
+        isNot(contains('"component": "TransitJourney"')),
       );
     });
   });
