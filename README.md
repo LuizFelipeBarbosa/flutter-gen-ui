@@ -177,6 +177,25 @@ The first build takes a minute or two; later runs are faster. Once it's up, pick
 
 > **Tip:** Tired of typing the flag? In VS Code add a `launch.json` config with `"args": ["--dart-define-from-file=.env"]`.
 
+### 5. Deploy on Netlify
+
+This repo includes a Git-based Netlify setup:
+
+- `netlify.toml` tells Netlify to run `bash tool/netlify_build.sh` and publish `build/web`.
+- `tool/netlify_build.sh` installs Flutter in Netlify's build environment when needed, runs `flutter pub get`, and builds the Flutter web app.
+- The web build uses `--pwa-strategy=none` so new deploys are not held back by Flutter's generated service worker cache.
+
+To connect it:
+
+1. Push this repo to GitHub, GitLab, or Bitbucket.
+2. In Netlify, choose **Add new project** -> **Import an existing project**, then select the repo.
+3. Leave **Base directory** blank unless the repo is moved into a monorepo subdirectory.
+4. Let Netlify read the build settings from `netlify.toml`.
+5. Add environment variables in Netlify under **Site configuration** -> **Environment variables**. At minimum set `INCEPTION_API_KEY`; add `GOOGLE_MAPS_API_KEY`, `GOOGLE_PLACES_API_KEY`, `KEY_511`, `BART_API_KEY`, or `BART_PROXY_BASE_URL` as needed.
+6. Deploy the site. Future pushes to the production branch trigger a fresh Netlify build automatically.
+
+Do not upload or commit `.env` for Netlify. Netlify environment variables replace the local `.env` file during the Git build. For public web deploys, remember that `--dart-define` values are compiled into browser-delivered JavaScript; restrict browser API keys by domain and put sensitive server-side tokens behind a proxy before production use.
+
 ---
 
 ## Configuration reference
