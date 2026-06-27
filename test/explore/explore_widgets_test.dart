@@ -1,25 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui_template/explore/explore_widgets.dart';
+import 'package:genui_template/location/location.dart';
 import 'package:genui_template/places/places.dart';
 
 void main() {
   testWidgets('places carousel fits dense metadata without overflow', (
     tester,
   ) async {
+    final overlayController = MapPlaceOverlayController();
+    addTearDown(overlayController.dispose);
+
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: SizedBox(
-            width: 360,
-            child: ExplorePlaceSearch(
-              title: 'Dense places',
-              query: 'dense places',
-              layout: ExplorePlaceSearchLayout.carousel,
-              latitude: 37.7749,
-              longitude: -122.4194,
-              client: _FakePlacesClient(),
-              onAction: (_, _) {},
+        home: MapPlaceOverlayScope(
+          controller: overlayController,
+          child: Scaffold(
+            body: SizedBox(
+              width: 360,
+              child: ExplorePlaceSearch(
+                title: 'Dense places',
+                query: 'dense places',
+                layout: ExplorePlaceSearchLayout.carousel,
+                latitude: 37.7749,
+                longitude: -122.4194,
+                client: _FakePlacesClient(),
+                onAction: (_, _) {},
+              ),
             ),
           ),
         ),
@@ -30,6 +37,11 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Place with lots of metadata'), findsOneWidget);
+    expect(overlayController.searchResultMarkers, hasLength(2));
+    expect(
+      overlayController.searchResultMarkers.map((marker) => marker.label),
+      containsAll(['Place with lots of metadata', 'Another dense place']),
+    );
   });
 }
 
@@ -71,6 +83,12 @@ class _FakePlacesClient extends GooglePlacesClient {
         latitude: 37.776,
         longitude: -122.42,
         types: ['museum', 'store', 'establishment'],
+      ),
+      PlaceResult(
+        id: 'place-3',
+        displayName: 'Unmapped place',
+        formattedAddress: 'No exact coordinate',
+        types: ['point_of_interest'],
       ),
     ];
   }

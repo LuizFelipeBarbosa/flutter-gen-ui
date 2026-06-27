@@ -38,7 +38,7 @@ void main() {
     expect(first, isNotNull);
     expect(first!.query, contains('Route this saved itinerary in order'));
     expect(first.query, contains('Coffee'));
-    expect(first.query, contains('Google-backed cards/lists'));
+    expect(first.query, contains('eligible Google Maps POI markers'));
     expect(second, isNotNull);
     expect(second!.id, isNot(first.id));
   });

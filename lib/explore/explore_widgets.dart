@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:genui_template/location/location_point.dart';
+import 'package:genui_template/location/map_place_overlay.dart';
 import 'package:genui_template/places/places.dart';
 import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
@@ -1250,6 +1251,7 @@ class ExplorePlaceSearch extends StatefulWidget {
 
 class _ExplorePlaceSearchState extends State<ExplorePlaceSearch> {
   late final GooglePlacesClient _client = widget.client ?? GooglePlacesClient();
+  MapPlaceOverlayController? _placeOverlayController;
   List<PlaceResult> _results = const [];
   Object? _error;
   bool _loading = true;
@@ -1258,6 +1260,18 @@ class _ExplorePlaceSearchState extends State<ExplorePlaceSearch> {
   void initState() {
     super.initState();
     unawaited(_load());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextController = MapPlaceOverlayScope.maybeOf(context);
+    if (nextController == _placeOverlayController) return;
+
+    _placeOverlayController = nextController;
+    if (!_loading && _error == null) {
+      _publishSearchMarkers(_results);
+    }
   }
 
   @override
@@ -1288,6 +1302,7 @@ class _ExplorePlaceSearchState extends State<ExplorePlaceSearch> {
         _results = results;
         _loading = false;
       });
+      _publishSearchMarkers(results);
     } on Object catch (error) {
       if (!mounted || _searchKey(widget) != key) return;
       setState(() {
@@ -1295,7 +1310,14 @@ class _ExplorePlaceSearchState extends State<ExplorePlaceSearch> {
         _results = const [];
         _loading = false;
       });
+      _placeOverlayController?.clearSearchResults();
     }
+  }
+
+  void _publishSearchMarkers(List<PlaceResult> results) {
+    _placeOverlayController?.showSearchResults(
+      MapPlaceMarker.searchResultsFromPlaces(results),
+    );
   }
 
   Future<List<PlaceResult>> _search() {
@@ -1394,7 +1416,8 @@ class _ExplorePlaceSearchState extends State<ExplorePlaceSearch> {
               ),
             ),
           Text(
-            'Places data from Google. Results are shown as cards only.',
+            'Places data from Google. Results are shown as cards and '
+            'eligible map markers.',
             style: BayHopText.body(size: 10.5, color: BayHopColors.faint),
           ),
         ],

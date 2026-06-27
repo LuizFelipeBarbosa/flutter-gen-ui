@@ -35,7 +35,10 @@ class GeolocatorUserLocationGateway implements UserLocationGateway {
       Geolocator.requestPermission();
 
   @override
-  Future<Position?> getLastKnownPosition() => Geolocator.getLastKnownPosition();
+  Future<Position?> getLastKnownPosition() {
+    if (kIsWeb) return Future.value();
+    return Geolocator.getLastKnownPosition();
+  }
 
   @override
   Future<Position> getCurrentPosition({

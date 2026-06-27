@@ -14,9 +14,11 @@ class BayHopShellPage extends StatefulWidget {
   const BayHopShellPage({
     super.key,
     this.itineraryStore,
+    this.placeOverlayController,
   });
 
   final ItineraryStore? itineraryStore;
+  final MapPlaceOverlayController? placeOverlayController;
 
   @override
   State<BayHopShellPage> createState() => _BayHopShellPageState();
@@ -30,8 +32,12 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
   late final TransitRouteHandoffController _transitRouteHandoffController =
       TransitRouteHandoffController();
   late final ItineraryController _itineraryController = ItineraryController();
+  late final MapPlaceOverlayController _placeOverlayController =
+      widget.placeOverlayController ?? MapPlaceOverlayController();
   late final ItineraryStore _itineraryStore =
       widget.itineraryStore ?? ItineraryStore();
+  late final bool _ownsPlaceOverlayController =
+      widget.placeOverlayController == null;
   bool _isLoadingItinerary = true;
   var _selectedIndex = 0;
 
@@ -39,7 +45,9 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
   void initState() {
     super.initState();
     unawaited(_locationController.refresh());
-    _itineraryController.addListener(_persistItinerary);
+    _itineraryController
+      ..addListener(_persistItinerary)
+      ..addListener(_syncSavedItineraryMarkers);
     unawaited(_loadItinerary());
   }
 
@@ -47,7 +55,9 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
   void dispose() {
     _itineraryController
       ..removeListener(_persistItinerary)
+      ..removeListener(_syncSavedItineraryMarkers)
       ..dispose();
+    if (_ownsPlaceOverlayController) _placeOverlayController.dispose();
     _transitRouteHandoffController.dispose();
     _exploreHandoffController.dispose();
     _locationController.dispose();
@@ -83,6 +93,35 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
     );
   }
 
+  void _syncSavedItineraryMarkers() {
+    final markers = <MapPlaceMarker>[];
+    final stops = _itineraryController.value;
+    for (var index = 0; index < stops.length; index++) {
+      final stop = stops[index];
+      final latitude = stop.latitude;
+      final longitude = stop.longitude;
+      if (latitude == null || longitude == null) continue;
+      if (!latitude.isFinite || !longitude.isFinite) continue;
+
+      markers.add(
+        MapPlaceMarker(
+          id: stop.localId,
+          label: stop.title,
+          subtitle: stop.category ?? stop.address,
+          coordinate: LocationCoordinate(
+            latitude: latitude,
+            longitude: longitude,
+          ),
+          kind: MapPlaceMarkerKind.savedItinerary,
+          sequence: index + 1,
+          googleMapsUri: stop.googleMapsUri,
+        ),
+      );
+    }
+
+    _placeOverlayController.showSavedItineraryMarkers(markers);
+  }
+
   void _openExplore(String query) {
     setState(() => _selectedIndex = 1);
     _exploreHandoffController.open(query);
@@ -107,42 +146,45 @@ class _BayHopShellPageState extends State<BayHopShellPage> {
       );
     }
 
-    return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          HomePage(
-            locationController: _locationController,
-            itineraryController: _itineraryController,
-            routeHandoffController: _transitRouteHandoffController,
-            onOpenExplore: _openExplore,
-          ),
-          ExplorePage(
-            itineraryController: _itineraryController,
-            locationListenable: _locationController,
-            handoffController: _exploreHandoffController,
-            onRouteInTransit: _routeItineraryInTransit,
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
-        },
-        backgroundColor: BayHopColors.surface,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.train_rounded),
-            selectedIcon: Icon(Icons.train_rounded),
-            label: 'Transit',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.travel_explore_rounded),
-            selectedIcon: Icon(Icons.travel_explore_rounded),
-            label: 'Explore',
-          ),
-        ],
+    return MapPlaceOverlayScope(
+      controller: _placeOverlayController,
+      child: Scaffold(
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: [
+            HomePage(
+              locationController: _locationController,
+              itineraryController: _itineraryController,
+              routeHandoffController: _transitRouteHandoffController,
+              onOpenExplore: _openExplore,
+            ),
+            ExplorePage(
+              itineraryController: _itineraryController,
+              locationListenable: _locationController,
+              handoffController: _exploreHandoffController,
+              onRouteInTransit: _routeItineraryInTransit,
+            ),
+          ],
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (index) {
+            setState(() => _selectedIndex = index);
+          },
+          backgroundColor: BayHopColors.surface,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.train_rounded),
+              selectedIcon: Icon(Icons.train_rounded),
+              label: 'Transit',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.travel_explore_rounded),
+              selectedIcon: Icon(Icons.travel_explore_rounded),
+              label: 'Explore',
+            ),
+          ],
+        ),
       ),
     );
   }

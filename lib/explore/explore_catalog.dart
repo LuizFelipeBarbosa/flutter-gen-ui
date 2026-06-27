@@ -286,7 +286,7 @@ final CatalogItem explorePlaceSearchItem = CatalogItem(
   dataSchema: S.object(
     description:
         'A Google Places-backed card list. Use for real venues and POIs. '
-        'Results must stay as cards/lists, not OSM map markers.',
+        'Coordinate-bearing results can also appear as Google Map markers.',
     properties: {
       'title': S.string(description: 'Search block title.'),
       'query': S.string(description: 'Text search query.'),

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui_template/explore/itinerary.dart';
@@ -129,6 +130,55 @@ void main() {
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
+    });
+
+    testWidgets('bottom sheet raises and lowers with mouse drags', (
+      tester,
+    ) async {
+      final locationController = UserLocationController();
+      addTearDown(locationController.dispose);
+
+      await tester.pumpWidget(
+        _TestApp(
+          child: HomePage(
+            locationController: locationController,
+            modelClientBuilder: ({required systemPrompt}) {
+              return _CapturingModelClient(systemPrompt: systemPrompt);
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final sheet = find.byKey(const ValueKey('transit-sheet-scrollable'));
+      final handle = find.byKey(const ValueKey('transit-sheet-drag-handle'));
+      expect(sheet, findsOneWidget);
+      expect(handle, findsOneWidget);
+
+      final initialTop = tester.getTopLeft(sheet).dy;
+      final lowerGesture = await tester.startGesture(
+        tester.getCenter(handle),
+        kind: PointerDeviceKind.mouse,
+      );
+      await lowerGesture.moveBy(const Offset(0, 280));
+      await tester.pump();
+      await lowerGesture.up();
+      await tester.pumpAndSettle();
+
+      final loweredTop = tester.getTopLeft(sheet).dy;
+      expect(loweredTop, greaterThan(initialTop + 80));
+
+      final raiseGesture = await tester.startGesture(
+        tester.getCenter(handle),
+        kind: PointerDeviceKind.mouse,
+      );
+      await raiseGesture.moveBy(const Offset(0, -280));
+      await tester.pump();
+      await raiseGesture.up();
+      await tester.pumpAndSettle();
+
+      final raisedTop = tester.getTopLeft(sheet).dy;
+      expect(raisedTop, lessThan(loweredTop - 80));
     });
 
     testWidgets('saved itinerary panel sends a route query', (tester) async {

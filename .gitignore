@@ -7,6 +7,7 @@
 .env
 .env.*
 !.env.example
+web/maps_config.js
 .atom/
 .build/
 .buildlog/

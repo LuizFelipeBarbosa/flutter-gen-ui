@@ -25,12 +25,13 @@ void main() {
     expect(systemPrompt, contains('Walk legs are only true foot paths'));
   });
 
-  test('transit instructions keep Google Places POIs in cards', () {
+  test('transit instructions allow eligible Google Places POI markers', () {
     expect(transitCatalogRules, contains('TransitPlaceSearch'));
-    expect(transitCatalogRules, contains('cards/lists'));
-    expect(transitCatalogRules, contains('never ask'));
+    expect(transitCatalogRules, contains('Google Maps POI markers'));
+    expect(transitCatalogRules, contains('valid'));
+    expect(transitCatalogRules, contains('coordinates'));
     expect(systemPrompt, contains('TransitPlaceSearch uses Google Places'));
-    expect(systemPrompt, contains('Do not request Google Places results'));
+    expect(systemPrompt, contains('Google Map markers'));
   });
 
   test('TransitPlaceSearch requires a concrete search query', () {
@@ -39,7 +40,7 @@ void main() {
     expect(requiredFields, containsAll(['component', 'title', 'query']));
     expect(transitCatalogRules, contains('Always include a'));
     expect(transitCatalogRules, contains('non-empty query'));
-    expect(systemPrompt, contains('Every TransitPlaceSearch must include'));
+    expect(systemPrompt, contains('TransitPlaceSearch must include'));
     expect(systemPrompt, contains('non-empty query'));
   });
 }

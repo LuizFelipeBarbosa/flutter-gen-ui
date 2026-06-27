@@ -3,7 +3,7 @@
 [![style: very good analysis][very_good_analysis_badge]][very_good_analysis_link]
 [![License: MIT][license_badge]][license_link]
 
-**BayHop** is a Bay Area transit & exploration app where the assistant answers in _live user interface_ instead of plain text. Ask _"Downtown Berkeley → SFO, leave now"_ or _"Plan a playful Oakland food crawl"_ and a language model streams back real Flutter cards — trip plans, live departure boards, place lists, service alerts — rendered on top of an interactive map.
+**BayHop** is a Bay Area transit & exploration app where the assistant answers in _live user interface_ instead of plain text. Ask _"Downtown Berkeley → SFO, leave now"_ or _"Plan a playful Oakland food crawl"_ and a language model streams back real Flutter cards — trip plans, live departure boards, place lists, service alerts — rendered on top of Google Maps on supported platforms.
 
 It's a **Generative UI (GenUI)** app built on Flutter and the [`genui`](https://pub.dev/packages/genui) package, and it started life as the [Very Good Ventures GenUI Hackathon Starter](https://github.com/VGVentures/genui_hackathon_starter). This README covers both: **what BayHop is** and **how to build on the GenUI architecture underneath it**.
 
@@ -17,11 +17,13 @@ BayHop is a two-tab experience (a bottom `NavigationBar` over an `IndexedStack`,
 
 ### 🚆 Transit tab (`lib/home_page.dart`)
 
-A full-bleed [OpenStreetMap](https://www.openstreetmap.org/) map with a draggable, frosted bottom sheet that hosts the live generated UI. Ask for a route or departures and the model replies with:
+A full-bleed Google Map with a draggable, frosted bottom sheet that hosts the live generated UI on Android, iOS, and web. Ask for a route or departures and the model replies with:
 
 - **Journey cards** — origin → destination trip options with a step-by-step timeline (walk / ride / change legs) and a colored route drawn on the map.
 - **Live departure boards** — real-time data from **BART** (`api.bart.gov`) and the **511 SF Bay Open Data** SIRI feed (Muni, Caltrain, AC Transit, ferries, and other monitored operators), with a 60-second cache and 30-second auto-refresh. Falls back to clearly-labeled _Planned_/_Estimated_ rows when a live fetch fails.
 - **Service alerts and notes** for delays and disruptions.
+
+On web, exposed map areas support panning and zooming. The Transit sheet still supports mouse dragging to raise/lower the generated UI, and wheel scrolling over the sheet stays with the UI instead of zooming the map.
 
 ### 🧭 Explore tab (`lib/explore/explore_page.dart`)
 
@@ -29,6 +31,7 @@ A "Bay Area Explorer" surface that turns a vibe or neighborhood into a transit-f
 
 - **Exploration branches** the model suggests to drill into ideas.
 - **Place cards** grounded in **Google Places (New)** — real venues with ratings, price, hours, and photos.
+- **Coordinate-bearing Places results** and saved itinerary stops can appear as Google Map POI markers.
 - A persistent **itinerary** you build by adding places (saved locally via `shared_preferences`), which you can then **hand off to the Transit tab** to be routed in order.
 
 ### ⚙️ Under the hood
@@ -36,6 +39,7 @@ A "Bay Area Explorer" surface that turns a vibe or neighborhood into a transit-f
 - **Generative UI core** — every card is described by the model as **A2UI** (agent-to-UI) JSON and rendered live into a `genui` `Surface`. The model can only ever ask for widgets you've registered in a **catalog**, so it can never request something the app can't draw.
 - **Pluggable model clients** — ships with **Inception Labs Mercury 2** as the default LLM, plus ready-to-swap Google Gemini and Featherless clients behind one `ModelClient` interface.
 - **Real device location** — `geolocator` finds your position and the nearest Bay Area transit stop, which is fed to the model as context.
+- **Google Maps overlays** — route polylines, current-location/nearest-stop markers, Google Places markers, and saved-itinerary markers are rendered through `google_maps_flutter` on native platforms. Web draws BayHop pins as a Flutter overlay on top of a locally styled Google Map, keeping Google's default place pins hidden.
 - **BayHop design system** — a light-mode "generative transit" look: a fixed palette, a blue→purple AI gradient, transit-line bullets, and Space Grotesk / Hanken Grotesk / JetBrains Mono typography (`lib/transit/bayhop_tokens.dart`, `bayhop_atoms.dart`).
 
 ---
@@ -107,9 +111,9 @@ BayHop targets the Flutter SDK that ships **Dart `^3.12.1`** (see [`pubspec.yaml
 flutter doctor
 ```
 
-You want green checkmarks for **Flutter** plus at least one run target (Xcode for macOS/iOS, the Android toolchain for Android, or Chrome for web). The quickest path on a Mac with no devices is the native **macOS** app; **Chrome** works on any OS.
+You want green checkmarks for **Flutter** plus at least one run target (Xcode for iOS, the Android toolchain for Android, or Chrome for web). For the interactive Google Map, use **Chrome**, **iOS**, or **Android**. The native macOS app remains usable, but it shows an unsupported-map panel instead of an interactive map.
 
-> Supported platforms in this repo: **macOS, iOS, Android, and web**. (There are no `windows/` or `linux/` desktop folders; run `flutter create .` if you want to add them.)
+> Supported app platforms in this repo: **macOS, iOS, Android, and web**. The real Google Maps renderer is supported on **iOS, Android, and web**. (There are no `windows/` or `linux/` desktop folders; run `flutter create .` if you want to add them.)
 
 ### 2. Get your API keys
 
@@ -117,6 +121,7 @@ You want green checkmarks for **Flutter** plus at least one run target (Xcode fo
 | ------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **Inception** (`INCEPTION_API_KEY`)  | **Required** — the default model that powers both tabs            | [platform.inceptionlabs.ai](https://platform.inceptionlabs.ai/dashboard/api-keys)                                          |
 | **Google Places** (`GOOGLE_PLACES_API_KEY`) | Optional — real place cards in Explore (and Transit place search) | [Google Cloud Console](https://developers.google.com/maps/documentation/places/web-service/get-api-key) → enable **Places API (New)** |
+| **Google Maps SDK** (`GOOGLE_MAPS_API_KEY` / platform key files) | Optional — interactive Google Map on Android, iOS, and web | [Google Maps Flutter config](https://developers.google.com/maps/flutter-package/config) → enable **Maps SDK for Android**, **Maps SDK for iOS**, and/or **Maps JavaScript API** |
 | **511** (`KEY_511`)                  | Optional — live departures beyond BART (Muni, Caltrain, AC, ferries…) | [511.org Open Data token](https://511.org/open-data/token)                                                              |
 
 **BART real-time departures work out of the box** using BART's public demo key — no setup required. Supply your own with `BART_API_KEY` if you have one.
@@ -132,6 +137,16 @@ cp .env.example .env
 
 `.env` is gitignored. At minimum set `INCEPTION_API_KEY`; the other entries can stay blank and those features simply stay off.
 
+Google Places and Google Maps SDK keys are separate. `GOOGLE_PLACES_API_KEY` is used by the Places web service client for cards. Google Maps needs platform setup:
+
+- Android: add `MAPS_API_KEY=your_android_key` to `android/local.properties`.
+- iOS: copy `ios/Flutter/MapsSecrets.xcconfig.example` to `ios/Flutter/MapsSecrets.xcconfig` and set `GOOGLE_MAPS_API_KEY=your_ios_key`.
+- Web: set `GOOGLE_MAPS_API_KEY` in `.env`; the app loads the Maps JavaScript SDK from that key before rendering the map. Web pins are drawn by the Flutter UI, so no Map ID or marker library is required.
+
+Also set `GOOGLE_MAPS_API_KEY` in `.env` for Android and iOS so the Flutter UI knows the native platform key is configured and does not show the missing-key panel.
+
+There is no `web/maps_config.js` setup anymore. Web map configuration comes from `.env` via `--dart-define-from-file=.env`.
+
 > **Compile-time, not runtime.** Because keys are baked in via `--dart-define`, editing `.env` requires a **restart** (not just hot reload). A plain shell `export INCEPTION_API_KEY=...` is **not** picked up — it must go through `--dart-define`/`--dart-define-from-file`.
 
 ### 4. Install dependencies and run
@@ -143,20 +158,22 @@ flutter pub get
 Then run on your platform of choice, passing the env file:
 
 ```sh
-# macOS desktop (quickest on a Mac)
-flutter run -d macos --dart-define-from-file=.env
-
-# Web (Chrome) — works on any OS
+# Web (Chrome) — works on any OS and supports the interactive map
 flutter run -d chrome --dart-define-from-file=.env
 
-# iOS / Android (device or simulator/emulator running)
+# iOS / Android (device or simulator/emulator running; supports the interactive map)
 flutter run -d ios      --dart-define-from-file=.env
 flutter run -d <device> --dart-define-from-file=.env
+
+# macOS desktop — usable shell, but Google Maps is unsupported on native desktop
+flutter run -d macos --dart-define-from-file=.env
 ```
 
 The first build takes a minute or two; later runs are faster. Once it's up, pick **Transit** or **Explore**, tap a suggestion, or type a request like _"Next trains from Embarcadero"_.
 
 > **Web note:** browsers may block direct calls to `api.bart.gov` (CORS). Route BART through a small proxy by setting `BART_PROXY_BASE_URL`. Geolocation also prompts differently on web.
+
+> **Web map note:** exposed map areas support panning and zooming. Mouse drag raises/lowers the Transit sheet, and wheel/trackpad scrolling over the sheet stays with the generated UI instead of zooming the map.
 
 > **Tip:** Tired of typing the flag? In VS Code add a `launch.json` config with `"args": ["--dart-define-from-file=.env"]`.
 
@@ -170,6 +187,7 @@ Every setting is a `--dart-define` (or a line in `.env`):
 | ----------------------- | ---------------------------- | -------------------------------------------------------- | -------------------------------------- |
 | `INCEPTION_API_KEY`     | **Yes** (default model)      | The Mercury 2 LLM powering both tabs                     | _Model calls fail with a clear error_  |
 | `GOOGLE_PLACES_API_KEY` | For place search             | Explore place cards & Transit place search               | _Place cards show a warning note_      |
+| `GOOGLE_MAPS_API_KEY`   | For the map renderer         | Loads Maps JavaScript on web and lets Flutter show the native map when Android/iOS platform keys are configured | _Map shows a missing-key panel_ |
 | `KEY_511`               | For non-BART live departures | 511 SF Bay live boards (Muni, Caltrain, AC, ferries…)    | _BART still works; 511 boards error_   |
 | `BART_API_KEY`          | Optional                     | Use your own BART API key                                | Public BART demo key (rate-limited)    |
 | `BART_PROXY_BASE_URL`   | Optional                     | Route BART requests through a proxy (e.g. web CORS)      | Direct calls to `api.bart.gov`         |
@@ -198,7 +216,7 @@ lib/
 │   ├── gemini_model_client.dart      # alternate (opt in)
 │   └── featherless_model_client.dart # alternate (opt in)
 │
-├── home_page.dart            # Transit tab: OSM map + bottom sheet hosting the Surface
+├── home_page.dart            # Transit tab: Google map + bottom sheet hosting the Surface
 ├── transit/                  # transit GenUI cards, live departures (BART + 511),
 │   │                         #   line palette, route geometry, BayHop design system
 │   ├── transit_catalog.dart  #   8 transit components the model can emit
@@ -220,7 +238,9 @@ lib/
 │
 ├── location/                 # geolocation + map
 │   ├── user_location_controller.dart # geolocator-backed location state
-│   ├── osm_map_background.dart        # flutter_map OpenStreetMap background + route overlay
+│   ├── google_map_background.dart     # Google Maps background + route/POI overlays
+│   ├── google_maps_javascript_loader*.dart # web Maps JS loader
+│   ├── map_place_overlay.dart         # shared Places/saved-itinerary marker state
 │   ├── bay_area_transit_stops.dart    # hardcoded stop dataset + nearest-stop lookup
 │   └── ...
 │
@@ -258,13 +278,14 @@ Tests live in `test/`, mirroring the `lib/` structure. For GenUI behavior, cover
 
 - The bundled BART key (`MW9S-E7SL-26DU-VV8V`) is BART's well-known **public demo key** — fine for local development, not for production traffic.
 - Map route geometry is **approximate** (built from hardcoded anchor points and station sequences), not from a routing API.
-- The map uses the public OpenStreetMap tile server; for anything beyond local development, review the [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/) and set a proper user agent.
+- Google Maps is the only real map renderer. Native macOS shows an unsupported-map panel instead of falling back to another map provider.
+- The map style hides Google's default POI and transit-station labels so BayHop's own route, location, Places, and itinerary pins are the only pins shown.
 - Don't ship public web/mobile builds with secrets embedded via `--dart-define`. Use a server-side proxy for production access to keyed APIs (511, Places).
 
 ## Data & credits
 
 - Transit data: **BART API** and **511 SF Bay Open Data**.
-- Map tiles: **© OpenStreetMap contributors**.
+- Maps: **Google Maps Platform**.
 - Places: **Google Places API (New)**.
 
 ---

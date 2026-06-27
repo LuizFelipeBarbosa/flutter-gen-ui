@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:genui_template/conversation.dart';
@@ -12,6 +14,7 @@ import 'package:genui_template/transit/bayhop_atoms.dart';
 import 'package:genui_template/transit/bayhop_tokens.dart';
 import 'package:genui_template/transit/transit_route_geometry.dart';
 import 'package:genui_template/transit/transit_widgets.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 typedef HomeModelClientBuilder =
     ModelClient Function({
@@ -207,6 +210,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.of(context).padding.top;
+    final placeOverlayController = MapPlaceOverlayScope.maybeOf(context);
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -218,42 +222,52 @@ class _HomePageState extends State<HomePage> {
           return Stack(
             children: [
               Positioned.fill(
-                child: OsmMapBackground(
+                child: GoogleMapBackground(
                   location: _locationController,
                   onRequestLocation: _locationController.refresh,
                   routeOverlayListenable: _routeOverlay,
+                  placeOverlayListenable: placeOverlayController,
                 ),
               ),
-              DraggableScrollableSheet(
-                controller: _sheetController,
-                initialChildSize: _halfSize,
-                minChildSize: _minSize,
-                maxChildSize: _fullSize,
-                snap: true,
-                snapSizes: const [_minSize, _halfSize, _fullSize],
-                builder: (context, scrollController) {
-                  return _BottomSheet(
-                    scrollController: scrollController,
-                    state: state,
-                    surfaceId: surfaceId,
-                    session: _session,
-                    locationController: _locationController,
-                    itineraryController: widget.itineraryController,
-                    actionDelegate: _actionDelegate,
-                    onJourneySelected: _handleJourneySelected,
-                    onRouteSavedItinerary: _routeSavedItinerary,
-                    onSuggestion: sendMessage,
-                  );
-                },
+              PointerInterceptor(
+                intercepting: kIsWeb,
+                child: ScrollConfiguration(
+                  behavior: const _TransitSheetScrollBehavior(),
+                  child: DraggableScrollableSheet(
+                    controller: _sheetController,
+                    initialChildSize: _halfSize,
+                    minChildSize: _minSize,
+                    maxChildSize: _fullSize,
+                    snap: true,
+                    snapSizes: const [_minSize, _halfSize, _fullSize],
+                    builder: (context, scrollController) {
+                      return _BottomSheet(
+                        scrollController: scrollController,
+                        state: state,
+                        surfaceId: surfaceId,
+                        session: _session,
+                        locationController: _locationController,
+                        itineraryController: widget.itineraryController,
+                        actionDelegate: _actionDelegate,
+                        onJourneySelected: _handleJourneySelected,
+                        onRouteSavedItinerary: _routeSavedItinerary,
+                        onSuggestion: sendMessage,
+                      );
+                    },
+                  ),
+                ),
               ),
               Positioned(
                 top: topInset + 12,
                 left: 14,
                 right: 14,
-                child: _BayHopSearchBar(
-                  controller: _textController,
-                  isProcessing: state.isWaiting,
-                  onSend: sendMessage,
+                child: PointerInterceptor(
+                  intercepting: kIsWeb,
+                  child: _BayHopSearchBar(
+                    controller: _textController,
+                    isProcessing: state.isWaiting,
+                    onSend: sendMessage,
+                  ),
                 ),
               ),
             ],
@@ -262,6 +276,16 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
+}
+
+class _TransitSheetScrollBehavior extends MaterialScrollBehavior {
+  const _TransitSheetScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    ...super.dragDevices,
+    PointerDeviceKind.mouse,
+  };
 }
 
 /// The frosted bottom sheet: a drag handle, quick chips, a live "nearby" row,
@@ -294,6 +318,7 @@ class _BottomSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BayHopFrostedSurface(
+      key: const ValueKey('transit-bottom-sheet'),
       borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
       blur: 26,
       opacity: 0.8,
@@ -311,24 +336,13 @@ class _BottomSheet extends StatelessWidget {
           ),
         ),
         child: ListView(
+          key: const ValueKey('transit-sheet-scrollable'),
           controller: scrollController,
           padding: EdgeInsets.zero,
           children: [
             const _DragHandle(),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 2, 16, 0),
-              child: Row(
-                children: [
-                  BayHopChip(label: 'Nearby'),
-                  SizedBox(width: 8),
-                  BayHopChip(label: 'Home'),
-                  SizedBox(width: 8),
-                  BayHopChip(label: 'Work'),
-                ],
-              ),
-            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
               child: _NearbyRow(
                 locationController: locationController,
                 onSuggestion: onSuggestion,
@@ -365,15 +379,19 @@ class _DragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 11, bottom: 7),
-      child: Center(
-        child: Container(
-          width: 40,
-          height: 5,
-          decoration: BoxDecoration(
-            color: const Color(0xFF14181C).withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(999),
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeUpDown,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 11, bottom: 7),
+        child: Center(
+          child: Container(
+            key: const ValueKey('transit-sheet-drag-handle'),
+            width: 40,
+            height: 5,
+            decoration: BoxDecoration(
+              color: const Color(0xFF14181C).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
         ),
       ),

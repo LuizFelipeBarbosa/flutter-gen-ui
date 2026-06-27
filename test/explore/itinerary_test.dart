@@ -172,7 +172,7 @@ void main() {
       expect(controller.toTransitPromptContext(), contains('coords 37.79550'));
       expect(
         controller.toTransitPromptContext(),
-        contains('cards/lists rather than map markers'),
+        contains('coordinate-bearing results can appear as Google Map markers'),
       );
     });
   });

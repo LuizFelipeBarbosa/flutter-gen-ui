@@ -267,8 +267,9 @@ class ItineraryController extends ValueNotifier<List<ItineraryStop>> {
     }
     return 'Saved itinerary stops in order: ${rows.join('; ')}. When the '
         'user asks to route the saved itinerary, preserve this order, use '
-        'coordinates only as spatial context, and render Google Places POIs '
-        'as cards/lists rather than map markers.';
+        'saved coordinates as routing and map context, and use '
+        'TransitPlaceSearch for Google Places POIs so coordinate-bearing '
+        'results can appear as Google Map markers.';
   }
 
   String _createLocalId() => 'stop-${_nextId++}';

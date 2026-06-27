@@ -258,7 +258,7 @@ final CatalogItem transitPlaceSearchItem = CatalogItem(
         'A Google Places-backed POI list for places near a route stop, '
         'destination, transfer, or saved itinerary area. Include a non-empty '
         'query for every search; latitude and longitude only bias the query. '
-        'Results must stay as cards/lists, not OSM map markers.',
+        'Coordinate-bearing results can also appear as Google Map markers.',
     properties: {
       'title': S.string(description: 'Search block title.'),
       'query': S.string(
@@ -396,8 +396,8 @@ Prefer the custom Bay Area transit components over generic cards or text:
 - Use TransitPlaceSearch for points of interest around a destination, saved
   itinerary stop, transfer station, or route corridor. Always include a
   non-empty query; latitude and longitude are optional search bias only.
-  Results are cards/lists only; never ask for Google Places POIs as OSM map
-  markers.
+  Results render as cards/lists, and Google Places results with valid
+  coordinates are eligible for Google Maps POI markers.
 - Use TransitJourney ride legs with line "regional-bus" for bus connections.
   Walk legs are only true foot paths, not bus placeholders.
 - Use TransitLiveDepartures for live BART departure requests when you know the BART abbreviation.

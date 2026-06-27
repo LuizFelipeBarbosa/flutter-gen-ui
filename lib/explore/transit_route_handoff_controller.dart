@@ -39,5 +39,5 @@ String? transitRouteRequestFor(List<ItineraryStop> stops) {
   return '$routeScope: ${rows.join('; ')}. Generate one recommended '
       'TransitJourney first, keep the stop order, and include points of '
       'interest around the saved stops or route corridor as Google-backed '
-      'cards/lists.';
+      'cards/lists and eligible Google Maps POI markers.';
 }

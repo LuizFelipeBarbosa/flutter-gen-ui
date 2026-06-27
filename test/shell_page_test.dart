@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui_template/explore/itinerary.dart';
 import 'package:genui_template/explore/itinerary_store.dart';
+import 'package:genui_template/location/location.dart';
 import 'package:genui_template/shell_page.dart';
 
 void main() {
@@ -51,6 +52,65 @@ void main() {
     expect(find.text('Saved itinerary'), findsOneWidget);
     expect(find.text('Coffee → Museum'), findsOneWidget);
     expect(store.saveCalls, 0);
+  });
+
+  testWidgets('publishes saved itinerary markers with valid coordinates', (
+    tester,
+  ) async {
+    final placeOverlayController = MapPlaceOverlayController();
+    addTearDown(placeOverlayController.dispose);
+
+    final store = _RecordingItineraryStore(
+      stops: const [
+        ItineraryStop(
+          localId: 'stop-1',
+          title: 'Coffee',
+          latitude: 37.776,
+          longitude: -122.424,
+        ),
+        ItineraryStop(
+          localId: 'stop-2',
+          title: 'No coordinate stop',
+        ),
+        ItineraryStop(
+          localId: 'stop-3',
+          title: 'Museum',
+          category: 'Art',
+          latitude: 37.785,
+          longitude: -122.401,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BayHopShellPage(
+          itineraryStore: store,
+          placeOverlayController: placeOverlayController,
+        ),
+      ),
+    );
+
+    store.completeLoad();
+    await _pumpUntil(
+      tester,
+      () => placeOverlayController.savedItineraryMarkers.length == 2,
+    );
+
+    expect(
+      placeOverlayController.savedItineraryMarkers.map((marker) => marker.id),
+      ['stop-1', 'stop-3'],
+    );
+    expect(
+      placeOverlayController.savedItineraryMarkers.map(
+        (marker) => marker.sequence,
+      ),
+      [1, 3],
+    );
+    expect(
+      placeOverlayController.savedItineraryMarkers.last.subtitle,
+      'Art',
+    );
   });
 }
 

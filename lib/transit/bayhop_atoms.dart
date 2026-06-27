@@ -493,7 +493,7 @@ class _BayHopSkeletonBarState extends State<BayHopSkeletonBar>
   }
 }
 
-/// A quiet rounded chip used for quick filters ("Nearby", "Home", "Work").
+/// A quiet rounded chip used for compact transit metadata.
 class BayHopChip extends StatelessWidget {
   const BayHopChip({required this.label, super.key});
 

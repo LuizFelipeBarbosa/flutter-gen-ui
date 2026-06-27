@@ -74,9 +74,10 @@ Interaction rules:
 - Keep strings short and scannable.
 
 Google Places compliance:
-- Google Places results are shown only in cards/lists.
-- Do not ask the app to plot Google Places results as map markers on the OSM
-  map.
+- Google Places results are shown as cards/lists, and coordinate-bearing
+  results may also appear as Google Map markers.
+- Do not emit custom marker schema; use ExplorePlaceSearch so the app can
+  filter Google Places results with valid latitude and longitude.
 
 Example:
 ```json

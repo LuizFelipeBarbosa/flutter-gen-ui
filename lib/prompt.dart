@@ -139,10 +139,10 @@ Trip rules:
   order from context. Generate one recommended TransitJourney first, then add
   TransitPlaceSearch sections for nearby coffee, food, parks, museums, views,
   or other POIs around the saved stops or route corridor.
-- TransitPlaceSearch uses Google Places and must render results as cards/lists
-  only. Every TransitPlaceSearch must include a non-empty query; latitude and
-  longitude are optional search bias only. Do not request Google Places results
-  as OSM map markers.
+- TransitPlaceSearch uses Google Places and renders result cards/lists. Every
+  TransitPlaceSearch must include a non-empty query; latitude and longitude are
+  optional search bias only. When Google Places returns valid coordinates, the
+  app may also show those POIs as Google Map markers.
 
 Status rules:
 - Use TransitAlert cards for delays or service status. If live status is not

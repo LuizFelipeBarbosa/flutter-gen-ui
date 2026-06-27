@@ -43,6 +43,14 @@ void main() {
     expect(schemaJson, contains('mosaic'));
   });
 
+  test('ExplorePlaceSearch allows eligible Google Maps POI markers', () {
+    final schemaJson = explorePlaceSearchItem.dataSchema.toJson();
+
+    expect(schemaJson, contains('Google Map markers'));
+    expect(exploreSystemPrompt, contains('coordinate-bearing'));
+    expect(exploreSystemPrompt, contains('Do not emit custom marker schema'));
+  });
+
   test('explore prompts prefer modular previews and no auto-save', () {
     expect(exploreSystemPrompt, contains('ExploreAdventurePlan'));
     expect(exploreSystemPrompt, contains('ExploreImageMosaic'));
