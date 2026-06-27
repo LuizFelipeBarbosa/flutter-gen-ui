@@ -79,6 +79,48 @@ void main() {
     expect(selectedJourney!.to, 'SFO');
   });
 
+  testWidgets('TransitJourneyCard rejects zero-minute placeholder routes', (
+    tester,
+  ) async {
+    TransitJourney? selectedJourney;
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: TransitRouteSelectionScope(
+          onJourneySelected: (journey) => selectedJourney = journey,
+          child: TransitJourneyCard.fromJson(const {
+            'recommended': true,
+            'tag': 'Planner-backed',
+            'from': 'Coffee',
+            'to': 'Museum',
+            'depart': '9:00',
+            'arrive': '9:00',
+            'duration': 0,
+            'changes': 0,
+            'legs': [
+              {
+                'type': 'ride',
+                'line': 'regional-transit',
+                'from': 'Coffee',
+                'to': 'Museum',
+                'mins': 0,
+              },
+            ],
+          }),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(selectedJourney, isNull);
+    expect(find.byType(TransitNoteCard), findsOneWidget);
+    expect(
+      find.textContaining('Transit timing is unavailable'),
+      findsOneWidget,
+    );
+    expect(find.text('0'), findsNothing);
+  });
+
   testWidgets('TransitJourneyCard selects route when tapped', (tester) async {
     TransitJourney? selectedJourney;
 

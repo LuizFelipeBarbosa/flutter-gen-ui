@@ -130,6 +130,16 @@ class SavedItineraryTransitPlanner {
         originName: fromName,
         destinationName: toName,
       );
+      if (!_hasUsableTiming(journey)) {
+        return SavedItineraryTransitSegment.unavailable(
+          fromName: fromName,
+          toName: toName,
+          requestedDepartureTime: departureTime,
+          note:
+              'Google Routes returned no usable transit times for this '
+              'segment. Do not fabricate times for this segment.',
+        );
+      }
       return SavedItineraryTransitSegment.available(
         fromName: fromName,
         toName: toName,
@@ -147,6 +157,14 @@ class SavedItineraryTransitPlanner {
   }
 }
 
+bool _hasUsableTiming(GoogleRoutesTransitJourney journey) {
+  if (journey.durationMinutes <= 0) return false;
+  if (journey.departClock == '--:--' || journey.arriveClock == '--:--') {
+    return false;
+  }
+  return journey.legs.any((leg) => leg.durationMinutes > 0);
+}
+
 enum SavedItineraryTransitPlanStatus { available, partial, unavailable }
 
 class SavedItineraryTransitPlan {
@@ -161,6 +179,9 @@ class SavedItineraryTransitPlan {
   final List<String> notes;
 
   bool get available => status == SavedItineraryTransitPlanStatus.available;
+  bool get hasAvailableSegments {
+    return segments.any((segment) => segment.available);
+  }
 
   String toPromptContext() {
     final buffer = StringBuffer(

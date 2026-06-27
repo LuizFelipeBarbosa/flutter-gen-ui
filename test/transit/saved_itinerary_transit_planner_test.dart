@@ -153,6 +153,24 @@ void main() {
       expect(plan.segments.single.note, contains('Google Routes failed'));
       expect(plan.segments.single.note, contains('Do not fabricate times'));
     });
+
+    test('marks zero-duration planner responses unavailable', () async {
+      final client = _FakeTransitRouteClient(durationMinutes: 0);
+      final planner = SavedItineraryTransitPlanner(client: client);
+
+      final plan = await planner.plan(
+        stops: [
+          _stop('stop-1', 'Coffee', latitude: 37.776, longitude: -122.408),
+          _stop('stop-2', 'Museum', latitude: 37.785, longitude: -122.401),
+        ],
+        departureTime: DateTime.parse('2026-06-27T10:00:00Z'),
+      );
+
+      expect(plan.status, SavedItineraryTransitPlanStatus.unavailable);
+      expect(plan.hasAvailableSegments, isFalse);
+      expect(plan.segments.single.note, contains('no usable transit times'));
+      expect(plan.toPromptContext(), contains('do not fabricate'));
+    });
   });
 }
 
@@ -173,9 +191,13 @@ ItineraryStop _stop(
 }
 
 class _FakeTransitRouteClient implements TransitRouteClient {
-  _FakeTransitRouteClient({this.error});
+  _FakeTransitRouteClient({
+    this.error,
+    this.durationMinutes = 10,
+  });
 
   final GoogleRoutesTransitException? error;
+  final int durationMinutes;
   final List<_TransitRequest> requests = [];
 
   @override
@@ -198,24 +220,27 @@ class _FakeTransitRouteClient implements TransitRouteClient {
     );
     final error = this.error;
     if (error != null) throw error;
+    final arrivalTime = requestDeparture.add(
+      Duration(minutes: durationMinutes),
+    );
 
     return GoogleRoutesTransitJourney(
       from: originName,
       to: destinationName,
       departClock: _clock(requestDeparture),
-      arriveClock: _clock(requestDeparture.add(const Duration(minutes: 10))),
-      durationMinutes: 10,
+      arriveClock: _clock(arrivalTime),
+      durationMinutes: durationMinutes,
       changes: 0,
       legs: [
         GoogleRoutesTransitLeg.ride(
-          durationMinutes: 10,
+          durationMinutes: durationMinutes,
           lineId: 'regional-transit',
           from: originName,
           to: destinationName,
         ),
       ],
       departureDateTime: requestDeparture,
-      arrivalDateTime: requestDeparture.add(const Duration(minutes: 10)),
+      arrivalDateTime: arrivalTime,
     );
   }
 

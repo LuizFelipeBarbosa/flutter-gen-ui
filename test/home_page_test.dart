@@ -428,6 +428,18 @@ void main() {
         modelClient.history.single.text,
         contains('Current location is unavailable'),
       );
+      expect(
+        modelClient.history.single.text,
+        contains('Transit planner facts are unavailable'),
+      );
+      expect(
+        modelClient.history.single.text,
+        contains('Do not render TransitJourney'),
+      );
+      expect(
+        modelClient.history.single.text,
+        isNot(contains('Planner-backed route facts')),
+      );
     });
   });
 }

@@ -214,6 +214,44 @@ void main() {
       expect(journey.legs.last.lineId, regionalTransitLineId);
     });
 
+    test('does not collapse same-time transit steps to zero minutes', () async {
+      final client = GoogleRoutesTransitClient(
+        apiKey: 'routes-key',
+        httpClient: MockClient(
+          (_) async => _jsonResponse({
+            'routes': [
+              _route(
+                steps: [
+                  _transitStep(
+                    duration: '90s',
+                    agency: 'BART',
+                    lineName: 'BART Red Line',
+                    lineShortName: 'Red',
+                    from: 'Downtown Berkeley',
+                    to: 'North Berkeley',
+                    departureTime: '2026-06-27T09:00:00-07:00',
+                    arrivalTime: '2026-06-27T09:00:00-07:00',
+                  ),
+                ],
+              ),
+            ],
+          }),
+        ),
+      );
+
+      final journey = await client.fetchBestRoute(
+        origin: const LocationCoordinate(latitude: 37.87, longitude: -122.27),
+        destination: const LocationCoordinate(
+          latitude: 37.874,
+          longitude: -122.283,
+        ),
+      );
+
+      expect(journey.durationMinutes, 2);
+      expect(journey.legs.single.durationMinutes, 2);
+      expect(journey.arriveClock, '9:02');
+    });
+
     test('does not call the network when the API key is missing', () async {
       var called = false;
       final client = GoogleRoutesTransitClient(

@@ -418,15 +418,22 @@ _ParsedTransitLeg _rideLegFromStep(
   final line = _map(transitDetails['transitLine']);
   final vehicle = _map(line['vehicle']);
   final departureTime = _dateTime(stopDetails['departureTime']);
-  final arrivalTime = _dateTime(stopDetails['arrivalTime']);
+  final rawArrivalTime = _dateTime(stopDetails['arrivalTime']);
+  final durationMinutes =
+      _minutesBetween(departureTime, rawArrivalTime) ??
+      _stepDurationMinutes(step);
+  final arrivalTime =
+      rawArrivalTime != null &&
+          departureTime != null &&
+          rawArrivalTime.isAfter(departureTime)
+      ? rawArrivalTime
+      : departureTime?.add(Duration(minutes: durationMinutes));
 
   return _ParsedTransitLeg(
     departureTime: departureTime,
     arrivalTime: arrivalTime,
     leg: GoogleRoutesTransitLeg.ride(
-      durationMinutes:
-          _minutesBetween(departureTime, arrivalTime) ??
-          _stepDurationMinutes(step),
+      durationMinutes: durationMinutes,
       lineId: _lineIdFor(line, vehicle),
       from: _string(departureStop['name']),
       to: _string(arrivalStop['name']),
@@ -514,13 +521,14 @@ int _durationMinutes(Object? value) {
   final match = RegExp(r'^(-?\d+(?:\.\d+)?)s$').firstMatch(text);
   if (match == null) return 0;
   final seconds = double.tryParse(match.group(1) ?? '') ?? 0;
-  return (seconds / 60).round();
+  if (seconds <= 0) return 0;
+  return (seconds / 60).ceil();
 }
 
 int? _minutesBetween(DateTime? depart, DateTime? arrive) {
   if (depart == null || arrive == null) return null;
   final seconds = arrive.difference(depart).inSeconds;
-  if (seconds <= 0) return 0;
+  if (seconds <= 0) return null;
   return (seconds / 60).round();
 }
 

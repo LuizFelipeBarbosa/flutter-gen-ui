@@ -121,6 +121,7 @@ You want green checkmarks for **Flutter** plus at least one run target (Xcode fo
 | ------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | **Inception** (`INCEPTION_API_KEY`)  | **Required** — the default model that powers both tabs            | [platform.inceptionlabs.ai](https://platform.inceptionlabs.ai/dashboard/api-keys)                                          |
 | **Google Places** (`GOOGLE_PLACES_API_KEY`) | Optional — real place cards in Explore (and Transit place search) | [Google Cloud Console](https://developers.google.com/maps/documentation/places/web-service/get-api-key) → enable **Places API (New)** |
+| **Google Routes** (`GOOGLE_ROUTES_API_KEY`) | Optional — data-backed saved-itinerary transit arrival/departure times | [Google Cloud Console](https://developers.google.com/maps/documentation/routes/cloud-setup) → enable **Routes API** |
 | **Google Maps SDK** (`GOOGLE_MAPS_API_KEY` / platform key files) | Optional — interactive Google Map on Android, iOS, and web | [Google Maps Flutter config](https://developers.google.com/maps/flutter-package/config) → enable **Maps SDK for Android**, **Maps SDK for iOS**, and/or **Maps JavaScript API** |
 | **511** (`KEY_511`)                  | Optional — live departures beyond BART (Muni, Caltrain, AC, ferries…) | [511.org Open Data token](https://511.org/open-data/token)                                                              |
 
@@ -207,6 +208,7 @@ Every setting is a `--dart-define` (or a line in `.env`):
 | `INCEPTION_API_KEY`     | **Yes** (default model)      | The Mercury 2 LLM powering both tabs                     | _Model calls fail with a clear error_  |
 | `GOOGLE_PLACES_API_KEY` | For place search             | Explore place cards & Transit place search               | _Place cards show a warning note_      |
 | `GOOGLE_MAPS_API_KEY`   | For the map renderer         | Loads Maps JavaScript on web and lets Flutter show the native map when Android/iOS platform keys are configured | _Map shows a missing-key panel_ |
+| `GOOGLE_ROUTES_API_KEY` | For saved-itinerary transit timing | Google Routes API transit routes with data-backed departure/arrival times | Falls back to `GOOGLE_MAPS_API_KEY`; route timing shows unavailable if neither key can call Routes API |
 | `KEY_511`               | For non-BART live departures | 511 SF Bay live boards (Muni, Caltrain, AC, ferries…)    | _BART still works; 511 boards error_   |
 | `BART_API_KEY`          | Optional                     | Use your own BART API key                                | Public BART demo key (rate-limited)    |
 | `BART_PROXY_BASE_URL`   | Optional                     | Route BART requests through a proxy (e.g. web CORS)      | Direct calls to `api.bart.gov`         |

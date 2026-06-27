@@ -91,9 +91,13 @@ Estimates:
   Muni every 8-12 minutes; Caltrain every 20-30 minutes.
 - Use the current time supplied in the user turn. If no time is supplied,
   assume "now" and make plausible clock times.
+- If the request says "Transit planner facts are unavailable", render a
+  warning TransitNote only. Do not render TransitJourney or TransitDepartures
+  cards and never use 0-minute placeholder route times.
 - If the request includes "Planner-backed route facts", copy the supplied
   TransitJourney fields exactly: depart, arrive, duration, changes, fare, and
-  ordered legs. Do not estimate or alter those route times.
+  ordered legs. Render unavailable segments as TransitNote cards. Do not
+  estimate, alter, or replace route times, and never use 0-minute placeholders.
 
 Departure requests:
 - For live BART requests, use TransitLiveDepartures with source "bart" when
@@ -129,6 +133,8 @@ Trip rules:
 - Use one to three TransitJourney cards, soonest or best first. Mark exactly
   one TransitJourney as recommended, and put it first unless the user asks to
   compare.
+- Do not output a TransitJourney when the duration or all leg mins would be 0.
+  Use a warning TransitNote if data-backed timing is unavailable.
 - Keep all strings short. Include fare, crowd, duration, changes, and ordered
   legs. Ride legs need type "ride", line, from, to, mins, and usually stops.
   Change legs need type "change", station, mins. Walk legs need type "walk",

@@ -265,6 +265,7 @@ class _TransitJourneyCardState extends State<TransitJourneyCard> {
 
   void _scheduleRecommendedRouteSelection() {
     if (!widget.journey.recommended) return;
+    if (!widget.journey.hasUsableTiming) return;
 
     final key = _journeyStateKey(widget.journey);
     if (_lastAutoSelectedJourneyKey == key) return;
@@ -281,6 +282,15 @@ class _TransitJourneyCardState extends State<TransitJourneyCard> {
   @override
   Widget build(BuildContext context) {
     final journey = widget.journey;
+    if (!journey.hasUsableTiming) {
+      return const TransitNoteCard(
+        tone: TransitNoteTone.warning,
+        text:
+            'Transit timing is unavailable for this route. Check route '
+            'planner setup or choose stops with mapped coordinates.',
+      );
+    }
+
     final timeline = journey.timeline;
     final strip = _JourneyStripData.fromJourney(journey);
     final badge = journey.recommended
@@ -1529,6 +1539,12 @@ class TransitJourney {
         : '$changes changes';
     if (fareLabel.isEmpty) return changeText;
     return '$changeText - $fareLabel';
+  }
+
+  bool get hasUsableTiming {
+    if (duration <= 0) return false;
+    if (depart.isEmpty || depart == '--:--') return false;
+    return legs.any((leg) => leg.minutes > 0);
   }
 }
 

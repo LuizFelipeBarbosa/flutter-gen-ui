@@ -220,10 +220,20 @@ class _HomePageState extends State<HomePage> {
     String query,
     SavedItineraryTransitPlan plan,
   ) {
+    if (!plan.hasAvailableSegments) {
+      return '$query Transit planner facts are unavailable: '
+          '${plan.toPromptContext()} Render a warning TransitNote only. '
+          'Do not render TransitJourney or TransitDepartures cards for this '
+          'request. Never use 0-minute placeholder route times.';
+    }
+
     return '$query Planner-backed route facts: ${plan.toPromptContext()} '
         'Use these planner-backed TransitJourney fields exactly when '
         'available. '
-        'Do not estimate route times for unavailable segments.';
+        'Only render TransitJourney cards for available planner-backed '
+        'segments with nonzero leg minutes. For unavailable segments, render '
+        'a TransitNote instead of estimating. Never use 0-minute placeholder '
+        'route times.';
   }
 
   @override
