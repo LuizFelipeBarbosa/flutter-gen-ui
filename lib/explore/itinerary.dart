@@ -185,6 +185,30 @@ class ItineraryController extends ValueNotifier<List<ItineraryStop>> {
     );
   }
 
+  ItineraryAddResult addFromActions(Iterable<Map<String, Object?>> contexts) {
+    var added = 0;
+    var skipped = 0;
+    final existingKeys = value.map((stop) => stop.dedupeKey).toSet();
+    final nextStops = [...value];
+
+    for (final context in contexts) {
+      final stop = ItineraryStop.fromAction(
+        context,
+        localId: _createLocalId(),
+      );
+      if (!existingKeys.add(stop.dedupeKey)) {
+        skipped++;
+        continue;
+      }
+
+      nextStops.add(stop);
+      added++;
+    }
+
+    if (added > 0) value = nextStops;
+    return ItineraryAddResult(added: added, skipped: skipped);
+  }
+
   void remove(String localId) {
     value = [
       for (final stop in value)
@@ -248,6 +272,18 @@ class ItineraryController extends ValueNotifier<List<ItineraryStop>> {
   }
 
   String _createLocalId() => 'stop-${_nextId++}';
+}
+
+class ItineraryAddResult {
+  const ItineraryAddResult({
+    required this.added,
+    required this.skipped,
+  });
+
+  final int added;
+  final int skipped;
+
+  int get total => added + skipped;
 }
 
 List<ItineraryStop> itineraryStopsFromJson(Object? value) {

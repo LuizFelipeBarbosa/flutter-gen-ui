@@ -130,6 +130,29 @@ void main() {
       expect(controller.value.last.localId, 'stop-10');
     });
 
+    test('bulk add preserves order and reports duplicates', () {
+      final controller = ItineraryController();
+      addTearDown(controller.dispose);
+
+      controller.addFromAction({'title': 'Coffee'});
+
+      final result = controller.addFromActions([
+        {'title': 'coffee'},
+        {'title': 'Museum', 'durationMinutes': 90},
+        {'title': 'museum', 'durationMinutes': 30},
+        {'title': 'Dinner'},
+      ]);
+
+      expect(result.added, 2);
+      expect(result.skipped, 2);
+      expect(result.total, 4);
+      expect(
+        controller.value.map((stop) => stop.title),
+        ['Coffee', 'Museum', 'Dinner'],
+      );
+      expect(controller.value[1].durationMinutes, 90);
+    });
+
     test('transit prompt includes ordered saved stop context', () {
       final controller = ItineraryController();
       addTearDown(controller.dispose);
