@@ -9,13 +9,7 @@ const googleMapsJavaScriptSdkRequired = true;
 Future<String?>? _loadFuture;
 
 bool get isGoogleMapsJavaScriptSdkReady {
-  final google = globalContext.getProperty<JSObject?>('google'.toJS);
-  if (google == null) return false;
-
-  final maps = google.getProperty<JSObject?>('maps'.toJS);
-  if (maps == null) return false;
-
-  return maps.getProperty<JSObject?>('Map'.toJS) != null;
+  return _mapsObject()?.getProperty<JSObject?>('Map'.toJS) != null;
 }
 
 Future<String?> ensureGoogleMapsJavaScriptSdkLoaded({
@@ -52,11 +46,7 @@ Future<String?> _loadGoogleMapsJavaScript(String apiKey) async {
     ..addEventListener(
       'load',
       ((web.Event _) {
-        completer.complete(
-          isGoogleMapsJavaScriptSdkReady
-              ? null
-              : 'Google Maps JavaScript loaded without Maps.',
-        );
+        unawaited(_completeMapsLoad(completer));
       }).toJS,
     )
     ..addEventListener(
@@ -83,6 +73,13 @@ Future<String?> _loadGoogleMapsJavaScript(String apiKey) async {
   );
 }
 
+Future<void> _completeMapsLoad(Completer<String?> completer) async {
+  if (completer.isCompleted) return;
+
+  final error = await _ensureMapsLibraryLoaded();
+  if (!completer.isCompleted) completer.complete(error);
+}
+
 bool _hasGoogleMapsScriptTag() {
   final configuredScript = web.document.querySelector(
     'script[data-bayhop-google-maps-sdk="true"]',
@@ -98,8 +95,50 @@ bool _hasGoogleMapsScriptTag() {
 Future<String?> _waitForGoogleMapsJavaScript() async {
   for (var attempt = 0; attempt < 120; attempt++) {
     if (isGoogleMapsJavaScriptSdkReady) return null;
+    if (_mapsObject()?.getProperty<JSFunction?>('importLibrary'.toJS) != null) {
+      return _ensureMapsLibraryLoaded();
+    }
     await Future<void>.delayed(const Duration(milliseconds: 100));
   }
 
   return 'Google Maps JavaScript did not finish loading.';
+}
+
+Future<String?> _ensureMapsLibraryLoaded() async {
+  if (isGoogleMapsJavaScriptSdkReady) return null;
+
+  final maps = _mapsObject();
+  final importLibrary = maps?.getProperty<JSFunction?>('importLibrary'.toJS);
+  if (maps == null || importLibrary == null) {
+    return _waitForMapsConstructor();
+  }
+
+  try {
+    final promise = maps.callMethod<JSPromise<JSAny?>>(
+      'importLibrary'.toJS,
+      'maps'.toJS,
+    );
+    await promise.toDart;
+  } on Object {
+    return 'Google Maps JavaScript loaded, but the Maps library failed to '
+        'initialize.';
+  }
+
+  return _waitForMapsConstructor();
+}
+
+Future<String?> _waitForMapsConstructor() async {
+  for (var attempt = 0; attempt < 40; attempt++) {
+    if (isGoogleMapsJavaScriptSdkReady) return null;
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  }
+
+  return 'Google Maps JavaScript loaded without Maps.';
+}
+
+JSObject? _mapsObject() {
+  final google = globalContext.getProperty<JSObject?>('google'.toJS);
+  if (google == null) return null;
+
+  return google.getProperty<JSObject?>('maps'.toJS);
 }

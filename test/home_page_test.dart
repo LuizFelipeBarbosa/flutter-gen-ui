@@ -10,7 +10,7 @@ import 'package:genui_template/model/model_client.dart';
 
 void main() {
   group('HomePage suggestions', () {
-    testWidgets('intro suggestion sends its query', (tester) async {
+    testWidgets('starter idle action sends its query', (tester) async {
       late final _CapturingModelClient modelClient;
 
       final locationController = UserLocationController();
@@ -30,13 +30,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(
-        find.byKey(
-          const ValueKey(
-            'intro-suggestion-Downtown Berkeley to SFO, leave now',
-          ),
-        ),
-      );
+      await _tapIdleAction(tester, 'starter_route');
       await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
 
       expect(
@@ -45,24 +39,172 @@ void main() {
       );
     });
 
+    testWidgets(
+      'nearby-stop-only first view renders nearby stop text and idle action '
+      'sends departures query',
+      (tester) async {
+        late final _CapturingModelClient modelClient;
+
+        final locationController = UserLocationController()
+          ..value = _locationSnapshotNear4thAndKing();
+        addTearDown(locationController.dispose);
+
+        await tester.pumpWidget(
+          _TestApp(
+            child: HomePage(
+              locationController: locationController,
+              modelClientBuilder: ({required systemPrompt}) {
+                return modelClient = _CapturingModelClient(
+                  systemPrompt: systemPrompt,
+                );
+              },
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.textContaining('4th & King'), findsWidgets);
+        expect(_idleAction('nearby_departures'), findsOneWidget);
+        expect(_idleAction('route_saved_itinerary'), findsNothing);
+        expect(modelClient.history, isEmpty);
+
+        await _tapIdleAction(tester, 'nearby_departures');
+        await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
+
+        expect(
+          modelClient.history.single.text,
+          contains('Request: Next departures from 4th & King'),
+        );
+      },
+    );
+
+    testWidgets(
+      'saved-itinerary context renders and idle route action sends route '
+      'request',
+      (tester) async {
+        late final _CapturingModelClient modelClient;
+
+        final locationController = UserLocationController();
+        final itinerary = _savedItineraryController();
+        addTearDown(locationController.dispose);
+        addTearDown(itinerary.dispose);
+
+        await tester.pumpWidget(
+          _TestApp(
+            child: HomePage(
+              locationController: locationController,
+              itineraryController: itinerary,
+              modelClientBuilder: ({required systemPrompt}) {
+                return modelClient = _CapturingModelClient(
+                  systemPrompt: systemPrompt,
+                );
+              },
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final routeRequest = transitRouteRequestFor(itinerary.value)!;
+
+        expect(find.text('Saved itinerary'), findsOneWidget);
+        expect(find.text('Coffee → Museum'), findsOneWidget);
+        expect(_idleAction('route_saved_itinerary'), findsOneWidget);
+        expect(modelClient.history, isEmpty);
+
+        await _tapIdleAction(tester, 'route_saved_itinerary');
+        await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
+
+        expect(
+          modelClient.history.single.text,
+          contains('Request: $routeRequest'),
+        );
+      },
+    );
+
+    testWidgets('idle first view does not call the model before a tap', (
+      tester,
+    ) async {
+      late final _CapturingModelClient modelClient;
+
+      final locationController = UserLocationController()
+        ..value = _locationSnapshotNear4thAndKing();
+      final itinerary = _savedItineraryController();
+      addTearDown(locationController.dispose);
+      addTearDown(itinerary.dispose);
+
+      await tester.pumpWidget(
+        _TestApp(
+          child: HomePage(
+            locationController: locationController,
+            itineraryController: itinerary,
+            modelClientBuilder: ({required systemPrompt}) {
+              return modelClient = _CapturingModelClient(
+                systemPrompt: systemPrompt,
+              );
+            },
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(_idleAction('nearby_departures'), findsOneWidget);
+      expect(_idleAction('route_saved_itinerary'), findsOneWidget);
+      expect(modelClient.history, isEmpty);
+    });
+
+    testWidgets(
+      'idle view updates when location or itinerary changes before first query',
+      (tester) async {
+        late final _CapturingModelClient modelClient;
+
+        final locationController = UserLocationController();
+        final itinerary = ItineraryController();
+        addTearDown(locationController.dispose);
+        addTearDown(itinerary.dispose);
+
+        await tester.pumpWidget(
+          _TestApp(
+            child: HomePage(
+              locationController: locationController,
+              itineraryController: itinerary,
+              modelClientBuilder: ({required systemPrompt}) {
+                return modelClient = _CapturingModelClient(
+                  systemPrompt: systemPrompt,
+                );
+              },
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(_idleAction('nearby_departures'), findsNothing);
+        expect(_idleAction('route_saved_itinerary'), findsNothing);
+        expect(modelClient.history, isEmpty);
+
+        locationController.value = _locationSnapshotNear4thAndKing();
+        await tester.pump();
+
+        expect(find.textContaining('4th & King'), findsWidgets);
+        expect(_idleAction('nearby_departures'), findsOneWidget);
+        expect(_idleAction('route_saved_itinerary'), findsNothing);
+        expect(modelClient.history, isEmpty);
+
+        itinerary.replaceAll(_savedItineraryStops);
+        await tester.pump();
+
+        expect(find.text('Coffee → Museum'), findsOneWidget);
+        expect(_idleAction('nearby_departures'), findsOneWidget);
+        expect(_idleAction('route_saved_itinerary'), findsOneWidget);
+        expect(modelClient.history, isEmpty);
+      },
+    );
+
     testWidgets('nearby stop row sends a departures query', (tester) async {
       late final _CapturingModelClient modelClient;
 
       final locationController = UserLocationController()
-        ..value = LocationSnapshot.available(
-          capturedAt: DateTime(2026, 6, 26, 9),
-          fix: UserLocationFix(
-            coordinate: const LocationCoordinate(
-              latitude: 37.7751,
-              longitude: -122.393,
-            ),
-            accuracyMeters: 20,
-            timestamp: DateTime(2026, 6, 26, 9),
-          ),
-          nearestStop: nearestBayAreaTransitStop(
-            const LocationCoordinate(latitude: 37.7751, longitude: -122.393),
-          ),
-        );
+        ..value = _locationSnapshotNear4thAndKing();
       addTearDown(locationController.dispose);
 
       await tester.pumpWidget(
@@ -88,7 +230,7 @@ void main() {
       );
     });
 
-    testWidgets('focused search suggestion stays mounted and sends its query', (
+    testWidgets('focused search suggestions use generated action keys', (
       tester,
     ) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -115,9 +257,11 @@ void main() {
         await tester.tap(find.byType(TextField));
         await tester.pump();
 
-        final suggestion = find.byKey(
-          const ValueKey('search-suggestion-Next trains from Embarcadero'),
-        );
+        expect(_searchSuggestion('starter_route'), findsOneWidget);
+        expect(_searchSuggestion('starter_departures'), findsOneWidget);
+        expect(_searchSuggestion('starter_status'), findsOneWidget);
+
+        final suggestion = _searchSuggestion('starter_departures');
         expect(suggestion, findsOneWidget);
 
         await tester.tap(suggestion);
@@ -185,17 +329,7 @@ void main() {
       late final _CapturingModelClient modelClient;
 
       final locationController = UserLocationController();
-      final itinerary = ItineraryController()
-        ..addFromAction({
-          'title': 'Coffee',
-          'address': 'San Francisco, CA',
-          'durationMinutes': 30,
-        })
-        ..addFromAction({
-          'title': 'Museum',
-          'address': 'San Francisco, CA',
-          'durationMinutes': 90,
-        });
+      final itinerary = _savedItineraryController();
       addTearDown(locationController.dispose);
       addTearDown(itinerary.dispose);
 
@@ -217,7 +351,7 @@ void main() {
       expect(find.text('Saved itinerary'), findsOneWidget);
       expect(find.text('Coffee → Museum'), findsOneWidget);
 
-      await tester.tap(find.text('Route'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Route'));
       await _pumpUntil(tester, () => modelClient.history.isNotEmpty);
 
       expect(
@@ -288,6 +422,60 @@ class _CapturingModelClient extends ModelClient {
 
   @override
   void dispose() {}
+}
+
+const List<ItineraryStop> _savedItineraryStops = [
+  ItineraryStop(
+    localId: 'stop-1',
+    title: 'Coffee',
+    address: 'San Francisco, CA',
+    durationMinutes: 30,
+  ),
+  ItineraryStop(
+    localId: 'stop-2',
+    title: 'Museum',
+    address: 'San Francisco, CA',
+    durationMinutes: 90,
+  ),
+];
+
+Finder _idleAction(String actionKey) {
+  return find.byKey(ValueKey('idle-action-$actionKey'));
+}
+
+Finder _searchSuggestion(String actionKey) {
+  return find.byKey(ValueKey('search-suggestion-$actionKey'));
+}
+
+Future<void> _tapIdleAction(WidgetTester tester, String actionKey) async {
+  final action = _idleAction(actionKey);
+  await tester.drag(
+    find.byKey(const ValueKey('transit-sheet-drag-handle')),
+    const Offset(0, -260),
+  );
+  await tester.pump(const Duration(milliseconds: 400));
+  await tester.ensureVisible(action);
+  await tester.pump();
+  await tester.tap(action);
+}
+
+LocationSnapshot _locationSnapshotNear4thAndKing() {
+  final capturedAt = DateTime(2026, 6, 26, 9);
+  const coordinate = LocationCoordinate(latitude: 37.7751, longitude: -122.393);
+
+  return LocationSnapshot.available(
+    capturedAt: capturedAt,
+    fix: UserLocationFix(
+      coordinate: coordinate,
+      accuracyMeters: 20,
+      timestamp: capturedAt,
+    ),
+    nearestStop: nearestBayAreaTransitStop(coordinate),
+  );
+}
+
+ItineraryController _savedItineraryController() {
+  return ItineraryController()..replaceAll(_savedItineraryStops);
 }
 
 Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {

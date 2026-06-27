@@ -21,33 +21,6 @@ typedef HomeModelClientBuilder =
       required String systemPrompt,
     });
 
-const List<_Suggestion> _suggestions = [
-  _Suggestion(
-    title: 'Downtown Berkeley → SFO',
-    subtitle: 'Trip · fastest 58 min',
-    query: 'Downtown Berkeley to SFO, leave now',
-    icon: Icons.alt_route_rounded,
-    tint: Color(0x1FED1C24),
-    iconColor: BayHopColors.red,
-  ),
-  _Suggestion(
-    title: 'Next trains from Embarcadero',
-    subtitle: 'Live departures',
-    query: 'Next trains from Embarcadero',
-    icon: Icons.departure_board_rounded,
-    tint: Color(0x1F0091D2),
-    iconColor: BayHopColors.aiBlue,
-  ),
-  _Suggestion(
-    title: 'Is the Yellow Line delayed?',
-    subtitle: 'Service status',
-    query: 'Is the Yellow Line delayed?',
-    icon: Icons.warning_amber_rounded,
-    tint: Color(0x24E8920B),
-    iconColor: BayHopColors.warn,
-  ),
-];
-
 class HomePage extends StatefulWidget {
   const HomePage({
     this.locationController,
@@ -266,6 +239,8 @@ class _HomePageState extends State<HomePage> {
                   child: _BayHopSearchBar(
                     controller: _textController,
                     isProcessing: state.isWaiting,
+                    locationController: _locationController,
+                    itineraryController: widget.itineraryController,
                     onSend: sendMessage,
                   ),
                 ),
@@ -362,6 +337,8 @@ class _BottomSheet extends StatelessWidget {
                 state: state,
                 surfaceId: surfaceId,
                 session: session,
+                locationController: locationController,
+                itineraryController: itineraryController,
                 actionDelegate: actionDelegate,
                 onJourneySelected: onJourneySelected,
                 onSuggestion: onSuggestion,
@@ -662,6 +639,8 @@ class _ResultArea extends StatelessWidget {
     required this.state,
     required this.surfaceId,
     required this.session,
+    required this.locationController,
+    required this.itineraryController,
     required this.actionDelegate,
     required this.onJourneySelected,
     required this.onSuggestion,
@@ -670,6 +649,8 @@ class _ResultArea extends StatelessWidget {
   final ConversationState state;
   final String? surfaceId;
   final GenUiSession session;
+  final UserLocationController locationController;
+  final ItineraryController? itineraryController;
   final ActionDelegate actionDelegate;
   final ValueChanged<TransitJourney> onJourneySelected;
   final ValueChanged<String> onSuggestion;
@@ -679,7 +660,18 @@ class _ResultArea extends StatelessWidget {
     if (state.isWaiting) return const _GeneratingResult();
 
     final id = surfaceId;
-    if (id == null) return _IntroResult(onSuggestion: onSuggestion);
+    if (id == null) {
+      return _TransitIdleContentBuilder(
+        locationController: locationController,
+        itineraryController: itineraryController,
+        builder: (context, content) {
+          return _TransitIdleResult(
+            content: content,
+            onAction: onSuggestion,
+          );
+        },
+      );
+    }
 
     return TransitRouteSelectionScope(
       onJourneySelected: onJourneySelected,
@@ -691,14 +683,218 @@ class _ResultArea extends StatelessWidget {
   }
 }
 
-/// Shown before any request: a friendly prompt plus tappable suggestions.
-class _IntroResult extends StatelessWidget {
-  const _IntroResult({required this.onSuggestion});
+class _TransitIdleContentBuilder extends StatelessWidget {
+  const _TransitIdleContentBuilder({
+    required this.locationController,
+    required this.itineraryController,
+    required this.builder,
+  });
 
-  final ValueChanged<String> onSuggestion;
+  static const _generator = _TransitIdleContentGenerator();
+
+  final UserLocationController locationController;
+  final ItineraryController? itineraryController;
+  final Widget Function(BuildContext, _TransitIdleContent) builder;
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<LocationSnapshot>(
+      valueListenable: locationController,
+      builder: (context, snapshot, _) {
+        final itinerary = itineraryController;
+        if (itinerary == null) {
+          return builder(
+            context,
+            _generator.generate(
+              location: snapshot,
+              itineraryStops: const [],
+            ),
+          );
+        }
+
+        return ValueListenableBuilder<List<ItineraryStop>>(
+          valueListenable: itinerary,
+          builder: (context, stops, _) {
+            return builder(
+              context,
+              _generator.generate(
+                location: snapshot,
+                itineraryStops: stops,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _TransitIdleContentGenerator {
+  const _TransitIdleContentGenerator();
+
+  static const _starterRoute = _TransitIdleAction(
+    actionKey: 'starter_route',
+    title: 'Downtown Berkeley → SFO',
+    subtitle: 'Trip · fastest 58 min',
+    query: 'Downtown Berkeley to SFO, leave now',
+    icon: Icons.alt_route_rounded,
+    tint: Color(0x1FED1C24),
+    iconColor: BayHopColors.red,
+  );
+
+  static const _starterDepartures = _TransitIdleAction(
+    actionKey: 'starter_departures',
+    title: 'Next trains from Embarcadero',
+    subtitle: 'Live departures',
+    query: 'Next trains from Embarcadero',
+    icon: Icons.departure_board_rounded,
+    tint: Color(0x1F0091D2),
+    iconColor: BayHopColors.aiBlue,
+  );
+
+  static const _starterStatus = _TransitIdleAction(
+    actionKey: 'starter_status',
+    title: 'Is the Yellow Line delayed?',
+    subtitle: 'Service status',
+    query: 'Is the Yellow Line delayed?',
+    icon: Icons.warning_amber_rounded,
+    tint: Color(0x24E8920B),
+    iconColor: BayHopColors.warn,
+  );
+
+  _TransitIdleContent generate({
+    required LocationSnapshot location,
+    required List<ItineraryStop> itineraryStops,
+  }) {
+    final nearest = _nearestStopFor(location);
+    final hasItinerary = itineraryStops.isNotEmpty;
+
+    if (nearest != null && hasItinerary) {
+      return _TransitIdleContent(
+        headline: 'Ready near ${nearest.stop.name}',
+        actions: [
+          _routeSavedItinerary(itineraryStops),
+          _nearbyDepartures(nearest),
+          _starterStatus,
+        ],
+      );
+    }
+
+    if (nearest != null) {
+      return _TransitIdleContent(
+        headline: 'Ready near ${nearest.stop.name}',
+        actions: [
+          _nearbyDepartures(nearest),
+          _starterRoute,
+          _starterStatus,
+        ],
+      );
+    }
+
+    if (hasItinerary) {
+      return _TransitIdleContent(
+        headline: 'Saved itinerary ready',
+        actions: [
+          _routeSavedItinerary(itineraryStops),
+          _starterDepartures,
+          _starterStatus,
+        ],
+      );
+    }
+
+    return const _TransitIdleContent(
+      headline: 'Where are you headed?',
+      subhead: 'Ask for trips, live departures, or service status.',
+      actions: [
+        _starterRoute,
+        _starterDepartures,
+        _starterStatus,
+      ],
+    );
+  }
+
+  NearestTransitStop? _nearestStopFor(LocationSnapshot snapshot) {
+    if (!snapshot.hasLocation) return null;
+    return snapshot.nearestStop;
+  }
+
+  _TransitIdleAction _routeSavedItinerary(List<ItineraryStop> stops) {
+    final stopLabel = stops.length == 1
+        ? '1 saved stop'
+        : '${stops.length} saved stops';
+
+    return _TransitIdleAction(
+      actionKey: 'route_saved_itinerary',
+      title: 'Route saved itinerary',
+      subtitle: 'Trip · $stopLabel',
+      query: transitRouteRequestFor(stops)!,
+      icon: Icons.bookmark_added_rounded,
+      tint: const Color(0x22A855F7),
+      iconColor: BayHopColors.aiPurple,
+    );
+  }
+
+  _TransitIdleAction _nearbyDepartures(NearestTransitStop nearest) {
+    final stop = nearest.stop;
+
+    return _TransitIdleAction(
+      actionKey: 'nearby_departures',
+      title: 'Next departures from ${stop.name}',
+      subtitle: '${stop.modeLabel} · ${nearest.distanceLabel} away',
+      query: 'Next departures from ${stop.name}',
+      icon: Icons.departure_board_rounded,
+      tint: const Color(0x1F0091D2),
+      iconColor: BayHopColors.aiBlue,
+    );
+  }
+}
+
+class _TransitIdleContent {
+  const _TransitIdleContent({
+    required this.headline,
+    required this.actions,
+    this.subhead,
+  });
+
+  final String headline;
+  final String? subhead;
+  final List<_TransitIdleAction> actions;
+}
+
+class _TransitIdleAction {
+  const _TransitIdleAction({
+    required this.actionKey,
+    required this.title,
+    required this.subtitle,
+    required this.query,
+    required this.icon,
+    required this.tint,
+    required this.iconColor,
+  });
+
+  final String actionKey;
+  final String title;
+  final String subtitle;
+  final String query;
+  final IconData icon;
+  final Color tint;
+  final Color iconColor;
+}
+
+/// Shown before any request: contextual prompts plus tappable actions.
+class _TransitIdleResult extends StatelessWidget {
+  const _TransitIdleResult({
+    required this.content,
+    required this.onAction,
+  });
+
+  final _TransitIdleContent content;
+  final ValueChanged<String> onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final subhead = content.subhead;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -711,14 +907,19 @@ class _IntroResult extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Where are you headed?',
+                    content.headline,
                     style: BayHopText.display(size: 19),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Ask for trips, live departures, or service status.',
-                    style: BayHopText.body(size: 13, color: BayHopColors.muted),
-                  ),
+                  if (subhead != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subhead,
+                      style: BayHopText.body(
+                        size: 13,
+                        color: BayHopColors.muted,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -735,13 +936,13 @@ class _IntroResult extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        for (final suggestion in _suggestions)
+        for (final action in content.actions)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: _SuggestionTile(
-              key: ValueKey('intro-suggestion-${suggestion.query}'),
-              suggestion: suggestion,
-              onTap: () => onSuggestion(suggestion.query),
+            child: _TransitIdleActionTile(
+              key: ValueKey('idle-action-${action.actionKey}'),
+              action: action,
+              onTap: () => onAction(action.query),
             ),
           ),
       ],
@@ -838,11 +1039,15 @@ class _BayHopSearchBar extends StatefulWidget {
   const _BayHopSearchBar({
     required this.controller,
     required this.isProcessing,
+    required this.locationController,
+    required this.itineraryController,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final bool isProcessing;
+  final UserLocationController locationController;
+  final ItineraryController? itineraryController;
   final ValueChanged<String> onSend;
 
   @override
@@ -946,7 +1151,11 @@ class _BayHopSearchBarState extends State<_BayHopSearchBar> {
           ),
           if (_focus.hasFocus) ...[
             const SizedBox(height: 10),
-            _SearchSuggestions(onPick: _pick),
+            _SearchSuggestions(
+              locationController: widget.locationController,
+              itineraryController: widget.itineraryController,
+              onPick: _pick,
+            ),
           ],
         ],
       ),
@@ -955,59 +1164,71 @@ class _BayHopSearchBarState extends State<_BayHopSearchBar> {
 }
 
 class _SearchSuggestions extends StatelessWidget {
-  const _SearchSuggestions({required this.onPick});
+  const _SearchSuggestions({
+    required this.locationController,
+    required this.itineraryController,
+    required this.onPick,
+  });
 
+  final UserLocationController locationController;
+  final ItineraryController? itineraryController;
   final ValueChanged<String> onPick;
 
   @override
   Widget build(BuildContext context) {
-    return BayHopFrostedSurface(
-      opacity: 0.82,
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x33121C26),
-          blurRadius: 36,
-          offset: Offset(0, 14),
-        ),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 9, 12, 6),
-              child: Text(
-                'TRY ASKING',
-                style: BayHopText.body(
-                  size: 10.5,
-                  weight: FontWeight.w700,
-                  color: BayHopColors.faint,
-                  letterSpacing: 0.5,
-                ),
-              ),
+    return _TransitIdleContentBuilder(
+      locationController: locationController,
+      itineraryController: itineraryController,
+      builder: (context, content) {
+        return BayHopFrostedSurface(
+          opacity: 0.82,
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33121C26),
+              blurRadius: 36,
+              offset: Offset(0, 14),
             ),
-            for (final suggestion in _suggestions)
-              _SuggestionTile(
-                key: ValueKey('search-suggestion-${suggestion.query}'),
-                suggestion: suggestion,
-                onTap: () => onPick(suggestion.query),
-              ),
           ],
-        ),
-      ),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 9, 12, 6),
+                  child: Text(
+                    'TRY ASKING',
+                    style: BayHopText.body(
+                      size: 10.5,
+                      weight: FontWeight.w700,
+                      color: BayHopColors.faint,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                for (final action in content.actions)
+                  _TransitIdleActionTile(
+                    key: ValueKey('search-suggestion-${action.actionKey}'),
+                    action: action,
+                    onTap: () => onPick(action.query),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
-class _SuggestionTile extends StatelessWidget {
-  const _SuggestionTile({
-    required this.suggestion,
+class _TransitIdleActionTile extends StatelessWidget {
+  const _TransitIdleActionTile({
+    required this.action,
     required this.onTap,
     super.key,
   });
 
-  final _Suggestion suggestion;
+  final _TransitIdleAction action;
   final VoidCallback onTap;
 
   @override
@@ -1025,13 +1246,13 @@ class _SuggestionTile extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: suggestion.tint,
+                  color: action.tint,
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: Icon(
-                  suggestion.icon,
+                  action.icon,
                   size: 18,
-                  color: suggestion.iconColor,
+                  color: action.iconColor,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1040,7 +1261,7 @@ class _SuggestionTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      suggestion.title,
+                      action.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: BayHopText.body(
@@ -1049,7 +1270,7 @@ class _SuggestionTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      suggestion.subtitle,
+                      action.subtitle,
                       style: BayHopText.body(
                         size: 12,
                         color: BayHopColors.muted,
@@ -1064,24 +1285,6 @@ class _SuggestionTile extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Suggestion {
-  const _Suggestion({
-    required this.title,
-    required this.subtitle,
-    required this.query,
-    required this.icon,
-    required this.tint,
-    required this.iconColor,
-  });
-
-  final String title;
-  final String subtitle;
-  final String query;
-  final IconData icon;
-  final Color tint;
-  final Color iconColor;
 }
 
 class _TransitActionDelegate implements ActionDelegate {
