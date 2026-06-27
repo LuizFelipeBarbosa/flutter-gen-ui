@@ -48,5 +48,6 @@ void main() {
     expect(exploreSystemPrompt, contains('ExploreImageMosaic'));
     expect(exploreSystemPrompt, contains('Never auto-save'));
     expect(exploreSystemPrompt, contains('preview'));
+    expect(exploreSystemPrompt, isNot(contains('https://example.com')));
   });
 }

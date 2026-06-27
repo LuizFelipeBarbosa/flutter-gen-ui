@@ -241,17 +241,19 @@ class _ExplorePageState extends State<ExplorePage> {
             );
 
             if (constraints.maxWidth < 900) {
+              final bottomInset = MediaQuery.of(context).padding.bottom;
+              final compactSheetHeight =
+                  _MobileItinerarySheet.compactHeight + bottomInset;
               final sheetHeight = _mobileItineraryExpanded
-                  ? _expandedMobileItineraryHeight(constraints.maxHeight)
-                  : _MobileItinerarySheet.compactHeight;
+                  ? _expandedMobileItineraryHeight(constraints.maxHeight) +
+                        bottomInset
+                  : compactSheetHeight;
 
               return Stack(
                 children: [
                   Positioned.fill(
                     child: Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: _MobileItinerarySheet.compactHeight,
-                      ),
+                      padding: EdgeInsets.only(bottom: compactSheetHeight),
                       child: explorer,
                     ),
                   ),

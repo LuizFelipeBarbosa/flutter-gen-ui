@@ -106,6 +106,11 @@ class ExploreHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actionQuery = query;
+    final fallbackImageUrl = _fallbackImageUrlFor([
+      title,
+      summary,
+      ...badges,
+    ]);
     final actionContext = <String, Object?>{
       'title': title,
       'summary': summary,
@@ -122,19 +127,12 @@ class ExploreHero extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (imageUrl == null)
-              const _ExploreVisualFallback(icon: Icons.travel_explore_rounded)
-            else
-              Image.network(
-                imageUrl!,
-                fit: BoxFit.cover,
-                semanticLabel: imageAltText,
-                errorBuilder: (_, _, _) {
-                  return const _ExploreVisualFallback(
-                    icon: Icons.travel_explore_rounded,
-                  );
-                },
-              ),
+            _ExploreNetworkImage(
+              imageUrl: imageUrl,
+              fallbackImageUrl: fallbackImageUrl,
+              semanticLabel: imageAltText,
+              fallbackIcon: Icons.travel_explore_rounded,
+            ),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -358,6 +356,11 @@ class _MosaicTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fallbackImageUrl = _fallbackImageUrlFor([
+      data.title,
+      data.badge,
+      data.query,
+    ]);
     final child = ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: AspectRatio(
@@ -365,15 +368,11 @@ class _MosaicTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(
-              data.imageUrl,
-              fit: BoxFit.cover,
+            _ExploreNetworkImage(
+              imageUrl: data.imageUrl,
+              fallbackImageUrl: fallbackImageUrl,
               semanticLabel: data.imageAltText,
-              errorBuilder: (_, _, _) {
-                return const _ExploreVisualFallback(
-                  icon: Icons.image_rounded,
-                );
-              },
+              fallbackIcon: Icons.image_rounded,
             ),
             DecoratedBox(
               decoration: BoxDecoration(
@@ -790,6 +789,12 @@ class _AdventureStopTile extends StatelessWidget {
             photoUri: photoUri,
             imageUrl: imageUrl,
             imageAltText: stop.imageAltText,
+            fallbackImageUrl: _fallbackImageUrlFor([
+              title,
+              stop.category,
+              stop.description,
+              stop.transitHint,
+            ]),
           ),
           const SizedBox(width: 11),
           Expanded(
@@ -861,6 +866,7 @@ class _AdventureStopTile extends StatelessWidget {
 class _AdventureStopVisual extends StatelessWidget {
   const _AdventureStopVisual({
     required this.index,
+    required this.fallbackImageUrl,
     this.photoUri,
     this.imageUrl,
     this.imageAltText,
@@ -870,6 +876,7 @@ class _AdventureStopVisual extends StatelessWidget {
   final Uri? photoUri;
   final String? imageUrl;
   final String? imageAltText;
+  final String fallbackImageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -883,19 +890,12 @@ class _AdventureStopVisual extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (networkImage == null)
-              const _ExploreVisualFallback(icon: Icons.place_rounded)
-            else
-              Image.network(
-                networkImage,
-                fit: BoxFit.cover,
-                semanticLabel: imageAltText,
-                errorBuilder: (_, _, _) {
-                  return const _ExploreVisualFallback(
-                    icon: Icons.place_rounded,
-                  );
-                },
-              ),
+            _ExploreNetworkImage(
+              imageUrl: networkImage,
+              fallbackImageUrl: fallbackImageUrl,
+              semanticLabel: imageAltText,
+              fallbackIcon: Icons.place_rounded,
+            ),
             Align(
               alignment: Alignment.topLeft,
               child: DecoratedBox(
@@ -1023,6 +1023,13 @@ class ExplorerOptionCard extends StatelessWidget {
               _ExplorerOptionVisual(
                 imageUrl: imageUrl,
                 imageAltText: imageAltText,
+                fallbackImageUrl: _fallbackImageUrlFor([
+                  title,
+                  subtitle,
+                  description,
+                  badge,
+                  category,
+                ]),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -1104,32 +1111,26 @@ class _ExplorerOptionVisual extends StatelessWidget {
   const _ExplorerOptionVisual({
     required this.imageUrl,
     required this.imageAltText,
+    required this.fallbackImageUrl,
   });
 
   final String? imageUrl;
   final String? imageAltText;
+  final String fallbackImageUrl;
 
   @override
   Widget build(BuildContext context) {
-    final url = imageUrl;
-
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
         width: 74,
         height: 74,
-        child: url == null
-            ? const _ExploreVisualFallback(icon: Icons.explore_rounded)
-            : Image.network(
-                url,
-                fit: BoxFit.cover,
-                semanticLabel: imageAltText,
-                errorBuilder: (_, _, _) {
-                  return const _ExploreVisualFallback(
-                    icon: Icons.explore_rounded,
-                  );
-                },
-              ),
+        child: _ExploreNetworkImage(
+          imageUrl: imageUrl,
+          fallbackImageUrl: fallbackImageUrl,
+          semanticLabel: imageAltText,
+          fallbackIcon: Icons.explore_rounded,
+        ),
       ),
     );
   }
@@ -1151,6 +1152,43 @@ class _ExploreVisualFallback extends StatelessWidget {
           size: 26,
         ),
       ),
+    );
+  }
+}
+
+class _ExploreNetworkImage extends StatelessWidget {
+  const _ExploreNetworkImage({
+    required this.imageUrl,
+    required this.fallbackImageUrl,
+    required this.fallbackIcon,
+    this.semanticLabel,
+  });
+
+  final String? imageUrl;
+  final String fallbackImageUrl;
+  final IconData fallbackIcon;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryUrl = _usableImageUrl(imageUrl) ?? fallbackImageUrl;
+    return _networkImage(
+      primaryUrl,
+      allowFallback: primaryUrl != fallbackImageUrl,
+    );
+  }
+
+  Widget _networkImage(String url, {required bool allowFallback}) {
+    return Image.network(
+      url,
+      fit: BoxFit.cover,
+      semanticLabel: semanticLabel,
+      errorBuilder: (_, _, _) {
+        if (allowFallback) {
+          return _networkImage(fallbackImageUrl, allowFallback: false);
+        }
+        return _ExploreVisualFallback(icon: fallbackIcon);
+      },
     );
   }
 }
@@ -1415,13 +1453,16 @@ class _PlaceResultsView extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (layout) {
       ExplorePlaceSearchLayout.carousel => SizedBox(
-        height: 178,
+        height: 224,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: results.length,
           separatorBuilder: (_, _) => const SizedBox(width: 10),
           itemBuilder: (context, index) {
-            return SizedBox(width: 292, child: _cardFor(results[index]));
+            return SizedBox(
+              width: 292,
+              child: _cardFor(results[index], compact: true),
+            );
           },
         ),
       ),
@@ -1438,7 +1479,7 @@ class _PlaceResultsView extends StatelessWidget {
             runSpacing: spacing,
             children: [
               for (final result in results)
-                SizedBox(width: width, child: _cardFor(result)),
+                SizedBox(width: width, child: _cardFor(result, compact: true)),
             ],
           );
         },
@@ -1455,9 +1496,10 @@ class _PlaceResultsView extends StatelessWidget {
     };
   }
 
-  Widget _cardFor(PlaceResult result) {
+  Widget _cardFor(PlaceResult result, {bool compact = false}) {
     return _PlaceResultCard(
       place: result,
+      compact: compact,
       distanceLabel: distanceLabelFor(result),
       photoUri: photoUriFor(result),
       onExplore: () => onExplore(result),
@@ -1473,6 +1515,7 @@ class _PlaceResultCard extends StatelessWidget {
     required this.onAdd,
     this.distanceLabel,
     this.photoUri,
+    this.compact = false,
   });
 
   final PlaceResult place;
@@ -1480,15 +1523,17 @@ class _PlaceResultCard extends StatelessWidget {
   final VoidCallback onAdd;
   final String? distanceLabel;
   final Uri? photoUri;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final card = place.toCardData();
-    final labels = [
+    final allLabels = [
       ?distanceLabel,
       ...card.metadata,
       ...card.tags,
     ];
+    final labels = compact ? allLabels.take(4).toList() : allLabels;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1529,7 +1574,7 @@ class _PlaceResultCard extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             card.subtitle!,
-                            maxLines: 2,
+                            maxLines: compact ? 1 : 2,
                             overflow: TextOverflow.ellipsis,
                             style: BayHopText.body(
                               size: 12,
@@ -1742,6 +1787,99 @@ String _adventureKey(List<ExploreAdventureStop> stops) {
   return stops
       .map((stop) => '${stop.title}|${stop.placeQuery}|${stop.placeId}')
       .join(';;');
+}
+
+const String _bayFallbackImageUrl =
+    'https://images.unsplash.com/photo-1501594907352-04cda38ebc29'
+    '?auto=format&fit=crop&w=1200&q=80';
+const String _foodFallbackImageUrl =
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836'
+    '?auto=format&fit=crop&w=1200&q=80';
+const String _coffeeFallbackImageUrl =
+    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085'
+    '?auto=format&fit=crop&w=1200&q=80';
+const String _cultureFallbackImageUrl =
+    'https://images.unsplash.com/photo-1518998053901-5348d3961a04'
+    '?auto=format&fit=crop&w=1200&q=80';
+const String _outdoorsFallbackImageUrl =
+    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee'
+    '?auto=format&fit=crop&w=1200&q=80';
+const String _viewsFallbackImageUrl =
+    'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429'
+    '?auto=format&fit=crop&w=1200&q=80';
+
+String _fallbackImageUrlFor(Iterable<String?> cues) {
+  final text = cues.whereType<String>().join(' ').toLowerCase();
+
+  if (_containsAny(text, const ['coffee', 'cafe', 'espresso', 'bakery'])) {
+    return _coffeeFallbackImageUrl;
+  }
+  if (_containsAny(text, const [
+    'food',
+    'snack',
+    'restaurant',
+    'dinner',
+    'lunch',
+    'taco',
+    'crawl',
+    'market',
+  ])) {
+    return _foodFallbackImageUrl;
+  }
+  if (_containsAny(text, const [
+    'culture',
+    'museum',
+    'art',
+    'mural',
+    'music',
+    'book',
+    'gallery',
+  ])) {
+    return _cultureFallbackImageUrl;
+  }
+  if (_containsAny(text, const [
+    'view',
+    'sunset',
+    'waterfront',
+    'bridge',
+    'skyline',
+    'hill',
+    'lookout',
+  ])) {
+    return _viewsFallbackImageUrl;
+  }
+  if (_containsAny(text, const [
+    'outdoor',
+    'park',
+    'hike',
+    'lake',
+    'garden',
+    'trail',
+    'beach',
+  ])) {
+    return _outdoorsFallbackImageUrl;
+  }
+
+  return _bayFallbackImageUrl;
+}
+
+bool _containsAny(String text, List<String> needles) {
+  return needles.any(text.contains);
+}
+
+String? _usableImageUrl(String? value) {
+  final text = _nullableString(value);
+  if (text == null) return null;
+
+  final uri = Uri.tryParse(text);
+  if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return null;
+  if (uri.host == 'example.com' ||
+      uri.host == 'example.org' ||
+      uri.host == 'example.net') {
+    return null;
+  }
+
+  return text;
 }
 
 String _string(Object? value, [String fallback = '']) {

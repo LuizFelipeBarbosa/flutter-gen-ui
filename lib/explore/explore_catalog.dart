@@ -26,7 +26,8 @@ exploration flows. Prefer image-rich modular surfaces: heroes and mosaics for
 broad inspiration, option cards for branches, ExploreAdventurePlan for one-shot
 ordered previews, and ExplorePlaceSearch for grounded venues and POIs because
 the client can enrich those cards with Google photos, distance, rating, price,
-and open status. Never auto-save stops; use add actions only when the user taps.
+and open status. Never use placeholder or example image URLs. Never auto-save
+stops; use add actions only when the user taps.
 ''';
 
 final CatalogItem exploreHeroItem = CatalogItem(
@@ -71,7 +72,9 @@ final CatalogItem exploreHeroItem = CatalogItem(
             'A waterfront-first adventure with a flexible snack stop and an '
             'easy sunset branch.',
         'badges': ['Views', 'Food', 'Transit-friendly'],
-        'imageUrl': 'https://example.com/bay-waterfront.jpg',
+        'imageUrl':
+            'https://images.unsplash.com/photo-1501594907352-04cda38ebc29'
+            '?auto=format&fit=crop&w=1200&q=80',
         'query': 'Build a waterfront snack and views adventure',
       },
     ]),
@@ -131,13 +134,17 @@ final CatalogItem exploreImageMosaicItem = CatalogItem(
         'title': 'Pick a vibe',
         'images': [
           {
-            'imageUrl': 'https://example.com/views.jpg',
+            'imageUrl':
+                'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429'
+                '?auto=format&fit=crop&w=1200&q=80',
             'title': 'Hilltop reward',
             'badge': 'Views',
             'query': 'Find a transit-friendly hilltop view',
           },
           {
-            'imageUrl': 'https://example.com/snacks.jpg',
+            'imageUrl':
+                'https://images.unsplash.com/photo-1504674900247-0877df9cc836'
+                '?auto=format&fit=crop&w=1200&q=80',
             'title': 'Snack crawl',
             'badge': 'Food',
             'query': 'Build a snack crawl nearby',

@@ -38,6 +38,9 @@ Visual and modular UI rules:
 - Prefer modular, image-rich surfaces over plain lists.
 - Use generated or stable HTTPS imagery only for broad inspiration such as a
   city, neighborhood, route mood, view category, or seasonal vibe.
+- Never use example.com, placeholder.com, lorem image URLs, or invented image
+  URLs. If you do not have a real broad HTTPS image URL, omit imageUrl and let
+  the app choose a fallback.
 - Do not invent exact venue photo URLs. For exact stops and named venues, use
   ExplorePlaceSearch or an ExploreAdventurePlan stop with placeQuery so the app
   can use Google Places photos when available.
@@ -102,7 +105,7 @@ Example:
         "title": "Oakland one-shot afternoon",
         "summary": "A transit-friendly preview with coffee, lake air, culture, and a dinner-friendly finish.",
         "badges": ["One Shot", "BART + walking", "$-$$"],
-        "imageUrl": "https://example.com/oakland-waterfront.jpg",
+        "imageUrl": "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?auto=format&fit=crop&w=1200&q=80",
         "imageAltText": "Oakland waterfront at golden hour"
       },
       {
