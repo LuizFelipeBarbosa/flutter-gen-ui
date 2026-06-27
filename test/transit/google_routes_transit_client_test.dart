@@ -271,7 +271,7 @@ void main() {
           isA<GoogleRoutesTransitException>().having(
             (error) => error.message,
             'message',
-            contains('GOOGLE_ROUTES_API_KEY'),
+            contains('GOOGLE_MAPS_API_KEY'),
           ),
         ),
       );

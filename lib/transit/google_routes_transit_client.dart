@@ -73,7 +73,7 @@ class GoogleRoutesTransitClient implements TransitRouteClient {
     final key = apiKey.trim();
     if (key.isEmpty) {
       throw const GoogleRoutesTransitException(
-        'GOOGLE_ROUTES_API_KEY or GOOGLE_MAPS_API_KEY is required for '
+        'GOOGLE_MAPS_API_KEY or GOOGLE_ROUTES_API_KEY is required for '
         'transit route timing.',
       );
     }
@@ -276,9 +276,9 @@ String _configuredApiKey(String? explicit) {
   final explicitKey = explicit?.trim();
   if (explicitKey != null && explicitKey.isNotEmpty) return explicitKey;
 
-  const routesKey = String.fromEnvironment('GOOGLE_ROUTES_API_KEY');
-  if (routesKey != '') return routesKey;
-  return const String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+  const mapsKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+  if (mapsKey != '') return mapsKey;
+  return const String.fromEnvironment('GOOGLE_ROUTES_API_KEY');
 }
 
 Map<String, Object?> _requestBody({
