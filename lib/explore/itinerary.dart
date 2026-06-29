@@ -1,5 +1,5 @@
+import 'package:bayhop/places/places.dart';
 import 'package:flutter/foundation.dart';
-import 'package:genui_template/places/places.dart';
 
 class ItineraryStop {
   const ItineraryStop({

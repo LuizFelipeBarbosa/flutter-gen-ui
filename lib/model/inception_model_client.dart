@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:genui_template/model/model_client.dart';
+import 'package:bayhop/model/model_client.dart';
 import 'package:http/http.dart' as http;
 
 enum InceptionReasoningEffort {

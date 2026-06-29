@@ -1,4 +1,4 @@
-import 'package:genui_template/location/location_point.dart';
+import 'package:bayhop/location/location_point.dart';
 
 enum TransitStopMode { bart, muniMetro, caltrain, ferry, bus, rail }
 

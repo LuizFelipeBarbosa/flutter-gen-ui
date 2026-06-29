@@ -1,8 +1,8 @@
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/transit/transit_lines.dart';
+import 'package:bayhop/transit/transit_route_geometry.dart';
+import 'package:bayhop/transit/transit_widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/transit/transit_lines.dart';
-import 'package:genui_template/transit/transit_route_geometry.dart';
-import 'package:genui_template/transit/transit_widgets.dart';
 
 void main() {
   group('resolveTransitRouteStop', () {

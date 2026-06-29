@@ -1,13 +1,13 @@
 import 'dart:async';
 
+import 'package:bayhop/explore/explore_image_resolver.dart';
+import 'package:bayhop/location/location_point.dart';
+import 'package:bayhop/location/map_place_overlay.dart';
+import 'package:bayhop/places/places.dart';
+import 'package:bayhop/transit/bayhop_atoms.dart';
+import 'package:bayhop/transit/bayhop_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/explore/explore_image_resolver.dart';
-import 'package:genui_template/location/location_point.dart';
-import 'package:genui_template/location/map_place_overlay.dart';
-import 'package:genui_template/places/places.dart';
-import 'package:genui_template/transit/bayhop_atoms.dart';
-import 'package:genui_template/transit/bayhop_tokens.dart';
 
 class ExploreSummaryCard extends StatelessWidget {
   const ExploreSummaryCard({
@@ -2008,7 +2008,7 @@ class _PlaceResultsView extends StatelessWidget {
           separatorBuilder: (_, _) => const SizedBox(width: 10),
           itemBuilder: (context, index) {
             return SizedBox(
-              width: 292,
+              width: BayHopResponsive.carouselCardWidthFor(context),
               child: _cardFor(results[index], compact: true),
             );
           },
@@ -2896,4 +2896,87 @@ String _typeLabel(String type) {
       .where((word) => word.isNotEmpty)
       .map((word) => '${word[0].toUpperCase()}${word.substring(1)}');
   return words.join(' ');
+}
+
+/// Wraps a horizontally-scrolling chip strip [child] with soft edge fades on
+/// phone-width screens, hinting that the row scrolls instead of looking like a
+/// crowded, clipped single row. The fades are [IgnorePointer]s, so they never
+/// intercept a chip tap or block an edge drag; they also disappear entirely on
+/// wider (tablet/desktop) layouts where the chips already fit.
+class BayHopEdgeFadeChipStrip extends StatelessWidget {
+  const BayHopEdgeFadeChipStrip({
+    required this.child,
+    this.fadeColor = BayHopColors.bgTop,
+    this.fadeWidth = 22,
+    super.key,
+  });
+
+  final Widget child;
+  final Color fadeColor;
+  final double fadeWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width > BayHopResponsive.phoneMax) {
+      return child;
+    }
+
+    return Stack(
+      children: [
+        child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _EdgeFade(
+                  width: fadeWidth,
+                  color: fadeColor,
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                const Spacer(),
+                _EdgeFade(
+                  width: fadeWidth,
+                  color: fadeColor,
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EdgeFade extends StatelessWidget {
+  const _EdgeFade({
+    required this.width,
+    required this.color,
+    required this.begin,
+    required this.end,
+  });
+
+  final double width;
+  final Color color;
+  final Alignment begin;
+  final Alignment end;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: begin,
+            end: end,
+            colors: [color, color.withValues(alpha: 0)],
+          ),
+        ),
+      ),
+    );
+  }
 }

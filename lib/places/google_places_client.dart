@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:genui_template/places/place_result.dart';
+import 'package:bayhop/places/place_result.dart';
 import 'package:http/http.dart' as http;
 
 enum NearbyRankPreference { popularity, distance }

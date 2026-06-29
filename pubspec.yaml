@@ -1,5 +1,5 @@
-name: genui_template
-description: "A new Flutter project."
+name: bayhop
+description: "BayHop, a generative Bay Area transit and exploration app."
 publish_to: "none"
 version: 0.1.0+1
 

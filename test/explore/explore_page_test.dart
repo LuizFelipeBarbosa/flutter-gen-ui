@@ -1,10 +1,10 @@
+import 'package:bayhop/explore/explore_page.dart';
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/model/model_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/explore/explore_page.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/model/model_client.dart';
 
 void main() {
   testWidgets('saved itinerary exposes a route in Transit action', (

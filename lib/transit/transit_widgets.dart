@@ -1,13 +1,13 @@
 import 'dart:async';
 
+import 'package:bayhop/explore/explore_widgets.dart' as explore_widgets;
+import 'package:bayhop/transit/_json.dart' as json_value;
+import 'package:bayhop/transit/bart_departures_client.dart';
+import 'package:bayhop/transit/bayhop_atoms.dart';
+import 'package:bayhop/transit/bayhop_tokens.dart';
+import 'package:bayhop/transit/transit_lines.dart';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/explore/explore_widgets.dart' as explore_widgets;
-import 'package:genui_template/transit/_json.dart' as json_value;
-import 'package:genui_template/transit/bart_departures_client.dart';
-import 'package:genui_template/transit/bayhop_atoms.dart';
-import 'package:genui_template/transit/bayhop_tokens.dart';
-import 'package:genui_template/transit/transit_lines.dart';
 
 class TransitRouteSelectionScope extends InheritedWidget {
   const TransitRouteSelectionScope({

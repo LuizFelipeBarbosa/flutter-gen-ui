@@ -1,4 +1,4 @@
-import 'package:genui_template/transit/transit_lines.dart';
+import 'package:bayhop/transit/transit_lines.dart';
 
 /// The system prompt that guides the overall interaction.
 ///

@@ -1,8 +1,8 @@
+import 'package:bayhop/explore/explore_widgets.dart';
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/places/places.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/explore_widgets.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/places/places.dart';
 
 void main() {
   for (final width in [340.0, 720.0]) {

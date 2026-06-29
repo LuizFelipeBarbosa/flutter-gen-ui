@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:genui_template/transit/_json.dart' as json_util;
-import 'package:genui_template/transit/transit_lines.dart';
+import 'package:bayhop/transit/_json.dart' as json_util;
+import 'package:bayhop/transit/transit_lines.dart';
 import 'package:http/http.dart' as http;
 
 enum LiveDeparturesSource { bart, sf511 }

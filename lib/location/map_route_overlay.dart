@@ -1,5 +1,5 @@
+import 'package:bayhop/location/location_point.dart';
 import 'package:flutter/material.dart';
-import 'package:genui_template/location/location_point.dart';
 
 enum MapRouteMarkerKind { origin, transfer, destination, stop }
 

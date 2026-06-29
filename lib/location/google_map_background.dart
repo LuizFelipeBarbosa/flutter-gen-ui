@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:bayhop/location/google_maps_javascript_loader.dart';
+import 'package:bayhop/location/location_point.dart';
+import 'package:bayhop/location/location_snapshot.dart';
+import 'package:bayhop/location/map_place_overlay.dart';
+import 'package:bayhop/location/map_route_overlay.dart';
+import 'package:bayhop/transit/bayhop_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:genui_template/location/google_maps_javascript_loader.dart';
-import 'package:genui_template/location/location_point.dart';
-import 'package:genui_template/location/location_snapshot.dart';
-import 'package:genui_template/location/map_place_overlay.dart';
-import 'package:genui_template/location/map_route_overlay.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class GoogleMapBackground extends StatefulWidget {
@@ -31,8 +32,11 @@ class GoogleMapBackground extends StatefulWidget {
 
 class _GoogleMapBackgroundState extends State<GoogleMapBackground> {
   static const _bayAreaCenter = LatLng(37.789, -122.315);
-  static const _mapPadding = EdgeInsets.fromLTRB(52, 116, 52, 360);
   static const _mapsApiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+
+  /// Camera padding keeps the focus above the bottom sheet; it tightens on
+  /// narrow phones so the map is not over-cropped. See [BayHopResponsive].
+  EdgeInsets get _mapPadding => BayHopResponsive.mapCameraPaddingFor(context);
   static const _appPinsOnlyMapStyle = '''
 [
   {

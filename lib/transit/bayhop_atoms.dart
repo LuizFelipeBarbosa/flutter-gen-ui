@@ -1,7 +1,7 @@
 import 'dart:ui' as ui;
 
+import 'package:bayhop/transit/bayhop_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:genui_template/transit/bayhop_tokens.dart';
 
 /// Shared BayHop building blocks used across the result cards and app shell.
 ///

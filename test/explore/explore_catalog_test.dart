@@ -1,7 +1,7 @@
+import 'package:bayhop/catalog.dart';
+import 'package:bayhop/explore/explore_catalog.dart';
+import 'package:bayhop/explore/explore_prompt.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/catalog.dart';
-import 'package:genui_template/explore/explore_catalog.dart';
-import 'package:genui_template/explore/explore_prompt.dart';
 
 void main() {
   test('buildExploreCatalog includes explorer components', () {

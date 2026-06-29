@@ -20,6 +20,7 @@ fi
 
 flutter --version
 flutter config --enable-web
+flutter clean
 flutter pub get
 
 build_args=(web --release --pwa-strategy=none)

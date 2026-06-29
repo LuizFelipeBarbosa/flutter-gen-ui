@@ -1,5 +1,5 @@
+import 'package:bayhop/explore/itinerary.dart';
 import 'package:flutter/foundation.dart';
-import 'package:genui_template/explore/itinerary.dart';
 
 class TransitRouteHandoff {
   const TransitRouteHandoff({

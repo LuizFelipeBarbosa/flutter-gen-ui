@@ -1,20 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:bayhop/conversation.dart';
+import 'package:bayhop/explore/explore_catalog.dart';
+import 'package:bayhop/explore/explore_handoff_controller.dart';
+import 'package:bayhop/explore/explore_prompt.dart';
+import 'package:bayhop/explore/explore_widgets.dart';
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/model/inception_model_client.dart';
+import 'package:bayhop/model/model_client.dart';
+import 'package:bayhop/transit/bayhop_atoms.dart';
+import 'package:bayhop/transit/bayhop_tokens.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/conversation.dart';
-import 'package:genui_template/explore/explore_catalog.dart';
-import 'package:genui_template/explore/explore_handoff_controller.dart';
-import 'package:genui_template/explore/explore_prompt.dart';
-import 'package:genui_template/explore/explore_widgets.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/model/inception_model_client.dart';
-import 'package:genui_template/model/model_client.dart';
-import 'package:genui_template/transit/bayhop_atoms.dart';
-import 'package:genui_template/transit/bayhop_tokens.dart';
 
 const List<_ExploreStarterSuggestion> _exploreSuggestions = [
   _ExploreStarterSuggestion(
@@ -158,7 +158,7 @@ class _ExplorePageState extends State<ExplorePage> {
     if (request.isEmpty) return;
     _truncateForwardHistory();
     _latestRequest = request;
-    _session.sendMessage(request);
+    unawaited(_session.sendMessage(request));
     _textController.clear();
     FocusScope.of(context).unfocus();
   }
@@ -340,13 +340,14 @@ class _ExplorerSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sidePadding = BayHopResponsive.sidePaddingFor(context);
     return ColoredBox(
       color: BayHopColors.bgTop,
       child: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: EdgeInsets.fromLTRB(sidePadding, 12, sidePadding, 8),
               child: _ExploreComposer(
                 controller: textController,
                 isProcessing: state.isWaiting,
@@ -354,7 +355,7 @@ class _ExplorerSurface extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: EdgeInsets.fromLTRB(sidePadding, 0, sidePadding, 8),
               child: _ExploreNavigationBar(
                 canGoBack: canGoBack,
                 onBack: onBack,
@@ -365,7 +366,12 @@ class _ExplorerSurface extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: EdgeInsets.fromLTRB(
+                      sidePadding,
+                      8,
+                      sidePadding,
+                      24,
+                    ),
                     child: Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
@@ -533,21 +539,23 @@ class _ExploreRemixStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _exploreRemixItems.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final item = _exploreRemixItems[index];
-          return ActionChip(
-            label: Text(item.label),
-            avatar: Icon(item.icon, size: 16),
-            visualDensity: VisualDensity.compact,
-            onPressed: () => onSend(_remixPrompt(item, request)),
-          );
-        },
+    return BayHopEdgeFadeChipStrip(
+      child: SizedBox(
+        height: 38,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _exploreRemixItems.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final item = _exploreRemixItems[index];
+            return ActionChip(
+              label: Text(item.label),
+              avatar: Icon(item.icon, size: 16),
+              visualDensity: VisualDensity.compact,
+              onPressed: () => onSend(_remixPrompt(item, request)),
+            );
+          },
+        ),
       ),
     );
   }
@@ -631,29 +639,31 @@ class _ExploreNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _exploreNavItems.length + (canGoBack ? 1 : 0),
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          if (canGoBack && index == 0) {
-            return IconButton.filledTonal(
-              tooltip: 'Back',
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_rounded),
-            );
-          }
+    return BayHopEdgeFadeChipStrip(
+      child: SizedBox(
+        height: 42,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: _exploreNavItems.length + (canGoBack ? 1 : 0),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            if (canGoBack && index == 0) {
+              return IconButton.filledTonal(
+                tooltip: 'Back',
+                onPressed: onBack,
+                icon: const Icon(Icons.arrow_back_rounded),
+              );
+            }
 
-          final item = _exploreNavItems[index - (canGoBack ? 1 : 0)];
-          return ActionChip(
-            label: Text(item.label),
-            onPressed: () => onPrompt(item.prompt),
-            avatar: _navIconFor(item.label),
-            visualDensity: VisualDensity.compact,
-          );
-        },
+            final item = _exploreNavItems[index - (canGoBack ? 1 : 0)];
+            return ActionChip(
+              label: Text(item.label),
+              onPressed: () => onPrompt(item.prompt),
+              avatar: _navIconFor(item.label),
+              visualDensity: VisualDensity.compact,
+            );
+          },
+        ),
       ),
     );
   }

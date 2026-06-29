@@ -1,7 +1,7 @@
+import 'package:bayhop/explore/explore_handoff_controller.dart';
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/explore/transit_route_handoff_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/explore_handoff_controller.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/explore/transit_route_handoff_controller.dart';
 
 void main() {
   test('ExploreHandoffController emits a new handoff for repeated queries', () {

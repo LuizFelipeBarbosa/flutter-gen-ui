@@ -1,7 +1,7 @@
+import 'package:bayhop/transit/bart_departures_client.dart';
+import 'package:bayhop/transit/transit_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/transit/bart_departures_client.dart';
-import 'package:genui_template/transit/transit_widgets.dart';
 
 void main() {
   testWidgets('TransitJourneyCard renders route details', (tester) async {

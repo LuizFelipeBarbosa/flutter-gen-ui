@@ -1,7 +1,7 @@
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/transit/transit_lines.dart';
+import 'package:bayhop/transit/transit_widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/transit/transit_lines.dart';
-import 'package:genui_template/transit/transit_widgets.dart';
 
 MapRouteOverlay? buildTransitJourneyRouteOverlay(
   TransitJourney journey, {

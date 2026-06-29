@@ -1,5 +1,5 @@
+import 'package:bayhop/transit/transit_catalog.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/transit/transit_catalog.dart';
 
 /// Builds the catalog of widgets the model is allowed to generate.
 ///

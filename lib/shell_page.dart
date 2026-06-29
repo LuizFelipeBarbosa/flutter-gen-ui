@@ -1,14 +1,14 @@
 import 'dart:async';
 
+import 'package:bayhop/explore/explore_handoff_controller.dart';
+import 'package:bayhop/explore/explore_page.dart';
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/explore/itinerary_store.dart';
+import 'package:bayhop/explore/transit_route_handoff_controller.dart';
+import 'package:bayhop/home_page.dart';
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/transit/bayhop_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:genui_template/explore/explore_handoff_controller.dart';
-import 'package:genui_template/explore/explore_page.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/explore/itinerary_store.dart';
-import 'package:genui_template/explore/transit_route_handoff_controller.dart';
-import 'package:genui_template/home_page.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/transit/bayhop_tokens.dart';
 
 class BayHopShellPage extends StatefulWidget {
   const BayHopShellPage({

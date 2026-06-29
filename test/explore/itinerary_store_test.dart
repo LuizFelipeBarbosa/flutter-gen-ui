@@ -1,8 +1,8 @@
 import 'dart:convert';
 
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/explore/itinerary_store.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/explore/itinerary_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

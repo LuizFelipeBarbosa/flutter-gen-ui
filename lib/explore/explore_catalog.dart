@@ -1,7 +1,7 @@
 import 'dart:convert';
 
+import 'package:bayhop/explore/explore_widgets.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/explore/explore_widgets.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 Catalog buildExploreCatalog() =>
