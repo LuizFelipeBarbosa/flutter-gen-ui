@@ -1,4 +1,4 @@
-package com.example.genui_template
+package app.bayhop
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -1,22 +1,22 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:bayhop/conversation.dart';
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/explore/transit_route_handoff_controller.dart';
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/model/inception_model_client.dart';
+import 'package:bayhop/model/model_client.dart';
+import 'package:bayhop/transit/bayhop_atoms.dart';
+import 'package:bayhop/transit/bayhop_tokens.dart';
+import 'package:bayhop/transit/google_routes_transit_client.dart';
+import 'package:bayhop/transit/saved_itinerary_transit_planner.dart';
+import 'package:bayhop/transit/transit_route_geometry.dart';
+import 'package:bayhop/transit/transit_widgets.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/conversation.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/explore/transit_route_handoff_controller.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/model/inception_model_client.dart';
-import 'package:genui_template/model/model_client.dart';
-import 'package:genui_template/transit/bayhop_atoms.dart';
-import 'package:genui_template/transit/bayhop_tokens.dart';
-import 'package:genui_template/transit/google_routes_transit_client.dart';
-import 'package:genui_template/transit/saved_itinerary_transit_planner.dart';
-import 'package:genui_template/transit/transit_route_geometry.dart';
-import 'package:genui_template/transit/transit_widgets.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 typedef HomeModelClientBuilder =
@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage> {
     if (request.isEmpty) return;
 
     _routeOverlay.value = null;
-    _session.sendMessage(request);
+    unawaited(_session.sendMessage(request));
     _textController.clear();
     FocusScope.of(context).unfocus();
     _expandSheet();
@@ -391,6 +391,7 @@ class _BottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sidePadding = BayHopResponsive.sidePaddingFor(context);
     return BayHopFrostedSurface(
       key: const ValueKey('transit-bottom-sheet'),
       borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
@@ -409,42 +410,50 @@ class _BottomSheet extends StatelessWidget {
             top: BorderSide(color: Color(0xD9FFFFFF)),
           ),
         ),
-        child: ListView(
-          key: const ValueKey('transit-sheet-scrollable'),
-          controller: scrollController,
-          padding: EdgeInsets.zero,
-          children: [
-            const _DragHandle(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-              child: _NearbyRow(
-                locationController: locationController,
-                onSuggestion: onSuggestion,
-              ),
-            ),
-            if (itineraryController != null)
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            key: const ValueKey('transit-sheet-scrollable'),
+            controller: scrollController,
+            padding: EdgeInsets.zero,
+            children: [
+              const _DragHandle(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                child: _SavedItineraryPanel(
-                  controller: itineraryController!,
-                  onRoute: onRouteSavedItinerary,
+                padding: EdgeInsets.fromLTRB(sidePadding, 6, sidePadding, 4),
+                child: _NearbyRow(
+                  locationController: locationController,
+                  onSuggestion: onSuggestion,
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
-              child: _ResultArea(
-                state: state,
-                surfaceId: surfaceId,
-                session: session,
-                locationController: locationController,
-                itineraryController: itineraryController,
-                actionDelegate: actionDelegate,
-                onJourneySelected: onJourneySelected,
-                onRouteSavedItinerary: onRouteSavedItinerary,
-                onSuggestion: onSuggestion,
+              if (itineraryController != null)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(sidePadding, 10, sidePadding, 0),
+                  child: _SavedItineraryPanel(
+                    controller: itineraryController!,
+                    onRoute: onRouteSavedItinerary,
+                  ),
+                ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  sidePadding,
+                  14,
+                  sidePadding,
+                  BayHopResponsive.resultAreaBottomPaddingFor(context),
+                ),
+                child: _ResultArea(
+                  state: state,
+                  surfaceId: surfaceId,
+                  session: session,
+                  locationController: locationController,
+                  itineraryController: itineraryController,
+                  actionDelegate: actionDelegate,
+                  onJourneySelected: onJourneySelected,
+                  onRouteSavedItinerary: onRouteSavedItinerary,
+                  onSuggestion: onSuggestion,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -713,6 +722,8 @@ class _NearbyRowSurface extends StatelessWidget {
                       ),
                     ],
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (isLocating)
@@ -1368,8 +1379,8 @@ class _TransitIdleActionTile extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: BayHopResponsive.actionIconBoxFor(context),
+                height: BayHopResponsive.actionIconBoxFor(context),
                 decoration: BoxDecoration(
                   color: action.tint,
                   borderRadius: BorderRadius.circular(11),
@@ -1396,6 +1407,8 @@ class _TransitIdleActionTile extends StatelessWidget {
                     ),
                     Text(
                       action.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: BayHopText.body(
                         size: 12,
                         color: BayHopColors.muted,

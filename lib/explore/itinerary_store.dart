@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:genui_template/explore/itinerary.dart';
+import 'package:bayhop/explore/itinerary.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ItineraryStore {

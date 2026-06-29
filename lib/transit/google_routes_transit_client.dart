@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:genui_template/location/location_point.dart';
-import 'package:genui_template/transit/transit_lines.dart';
+import 'package:bayhop/location/location_point.dart';
+import 'package:bayhop/transit/transit_lines.dart';
 import 'package:http/http.dart' as http;
 
 enum TransitRoutingPreference {

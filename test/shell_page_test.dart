@@ -1,11 +1,11 @@
 import 'dart:async';
 
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/explore/itinerary_store.dart';
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/shell_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/explore/itinerary_store.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/shell_page.dart';
 
 void main() {
   testWidgets('waits for saved itinerary before showing the shell', (

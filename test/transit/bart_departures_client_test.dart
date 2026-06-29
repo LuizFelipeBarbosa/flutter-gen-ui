@@ -1,7 +1,7 @@
 import 'dart:convert';
 
+import 'package:bayhop/transit/bart_departures_client.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/transit/bart_departures_client.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 

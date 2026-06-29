@@ -1,6 +1,6 @@
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/location/location_point.dart';
-import 'package:genui_template/transit/google_routes_transit_client.dart';
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/location/location_point.dart';
+import 'package:bayhop/transit/google_routes_transit_client.dart';
 
 class SavedItineraryTransitPlanner {
   const SavedItineraryTransitPlanner({

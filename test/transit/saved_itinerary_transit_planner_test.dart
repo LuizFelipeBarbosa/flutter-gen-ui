@@ -1,8 +1,8 @@
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/location/location_point.dart';
+import 'package:bayhop/transit/google_routes_transit_client.dart';
+import 'package:bayhop/transit/saved_itinerary_transit_planner.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/location/location_point.dart';
-import 'package:genui_template/transit/google_routes_transit_client.dart';
-import 'package:genui_template/transit/saved_itinerary_transit_planner.dart';
 
 void main() {
   group('SavedItineraryTransitPlanner', () {

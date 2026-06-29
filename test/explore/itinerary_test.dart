@@ -1,6 +1,6 @@
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/places/places.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/places/places.dart';
 
 void main() {
   group('ItineraryController', () {

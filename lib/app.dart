@@ -1,6 +1,6 @@
+import 'package:bayhop/shell_page.dart';
+import 'package:bayhop/transit/bayhop_tokens.dart';
 import 'package:flutter/material.dart';
-import 'package:genui_template/shell_page.dart';
-import 'package:genui_template/transit/bayhop_tokens.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class MainApp extends StatelessWidget {
@@ -22,6 +22,11 @@ class MainApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: base.copyWith(
         textTheme: GoogleFonts.hankenGroteskTextTheme(base.textTheme),
+      ),
+      builder: (context, child) => MediaQuery.withClampedTextScaling(
+        minScaleFactor: 0.85,
+        maxScaleFactor: 1.2,
+        child: child!,
       ),
       home: const BayHopShellPage(),
     );

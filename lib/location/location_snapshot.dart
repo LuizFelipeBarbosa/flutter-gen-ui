@@ -1,5 +1,5 @@
-import 'package:genui_template/location/bay_area_transit_stops.dart';
-import 'package:genui_template/location/location_point.dart';
+import 'package:bayhop/location/bay_area_transit_stops.dart';
+import 'package:bayhop/location/location_point.dart';
 
 enum LocationSnapshotStatus {
   idle,

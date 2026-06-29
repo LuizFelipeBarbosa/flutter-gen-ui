@@ -112,8 +112,8 @@ client.close(); // idempotent; closes the owned http.Client
 
 ```dart
 import 'package:genui/genui.dart';
-import 'package:genui_template/model/model_client.dart';
-import 'package:genui_template/prompt.dart';
+import 'package:bayhop/model/model_client.dart';
+import 'package:bayhop/prompt.dart';
 import 'package:openai_dart/openai_dart.dart';
 
 /// A [ModelClient] backed by a model hosted on Featherless.ai.

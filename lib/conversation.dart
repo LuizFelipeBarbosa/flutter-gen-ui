@@ -1,8 +1,8 @@
+import 'package:bayhop/catalog.dart' as default_catalog;
+import 'package:bayhop/model/model_client.dart';
+import 'package:bayhop/prompt.dart' as default_prompt;
 import 'package:flutter/foundation.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/catalog.dart' as default_catalog;
-import 'package:genui_template/model/model_client.dart';
-import 'package:genui_template/prompt.dart' as default_prompt;
 
 typedef GenUiCatalogBuilder = Catalog Function();
 typedef GenUiContextProvider = String? Function();
@@ -79,6 +79,8 @@ class GenUiSession {
   late final Conversation _conversation;
   final GenUiContextProvider _contextProvider;
   final DateTime Function() _currentTime;
+  Future<void> _sendQueue = Future<void>.value();
+  bool _isDisposed = false;
 
   /// The raw A2UI JSON of the current (or most recent) model turn, updated live
   /// as the response streams in.
@@ -93,8 +95,24 @@ class GenUiSession {
   Stream<ConversationEvent> get events => _conversation.events;
 
   /// Sends a user message to the model and starts the conversation.
-  void sendMessage(String text) =>
-      _conversation.sendRequest(ChatMessage.user(text));
+  ///
+  /// A single [A2uiTransportAdapter] parses the model stream for the whole
+  /// session. Serializing requests keeps simultaneous taps or handoffs from
+  /// interleaving chunks in that parser or mutating the shared model history at
+  /// the same time.
+  Future<void> sendMessage(String text) {
+    final currentSend = _sendQueue.then((_) async {
+      if (_isDisposed) return;
+      await _conversation.sendRequest(ChatMessage.user(text));
+    });
+
+    _sendQueue = currentSend.catchError((Object error, StackTrace stackTrace) {
+      debugPrint('GenUI send failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    });
+
+    return currentSend;
+  }
 
   /// Forwards a UI event into the live GenUI controller.
   void handleUiEvent(UiEvent event) => _controller.handleUiEvent(event);
@@ -165,6 +183,7 @@ class GenUiSession {
   /// Disposes the whole pipeline. Cancels conversation subscriptions, closes
   /// the transport and controller, and releases the model client's resources.
   void dispose() {
+    _isDisposed = true;
     _conversation.dispose();
     _transport.dispose();
     _controller.dispose();

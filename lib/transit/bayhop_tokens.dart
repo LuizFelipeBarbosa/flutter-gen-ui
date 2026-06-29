@@ -126,3 +126,52 @@ abstract final class BayHopText {
     );
   }
 }
+
+/// Shared responsive rules for the BayHop static chrome.
+///
+/// Every helper keys off the current width and only *tightens* on narrow phones
+/// (≤[narrowPhoneMax]); on common phones (360–430dp) and on tablet/desktop it
+/// returns the same values the layout used before, so the design is unchanged
+/// where it already looked right. This keeps the spacing/sizing decisions in one
+/// place instead of scattered magic numbers at each call site.
+abstract final class BayHopResponsive {
+  /// At or below this width a phone is "narrow" (iPhone SE, small Android).
+  static const double narrowPhoneMax = 360;
+
+  /// Upper bound of the common single-hand phone band.
+  static const double phoneMax = 430;
+
+  /// At or above this width the layout is a tablet/desktop split.
+  static const double tabletMin = 900;
+
+  /// Side gutter for chrome sections: tighter on narrow phones, 16dp otherwise.
+  static double sidePaddingFor(BuildContext context) =>
+      MediaQuery.sizeOf(context).width <= narrowPhoneMax ? 14 : 16;
+
+  /// Bottom inset under the transit result area. The flat 120dp wastes a third
+  /// of a half-open sheet on short phones, so reclaim it there while keeping
+  /// the generous breathing room on common phones and tablets.
+  static double resultAreaBottomPaddingFor(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width <= narrowPhoneMax) return 84;
+    if (width >= tabletMin) return 160;
+    return 120;
+  }
+
+  /// Tinted icon box in action tiles: shrink the box on narrow phones only.
+  /// Callers keep their own corner radius and tint.
+  static double actionIconBoxFor(BuildContext context) =>
+      MediaQuery.sizeOf(context).width <= narrowPhoneMax ? 32 : 34;
+
+  /// Width of a place-search carousel card: tighten only on narrow phones so
+  /// the second card still peeks instead of being clipped.
+  static double carouselCardWidthFor(BuildContext context) =>
+      MediaQuery.sizeOf(context).width <= narrowPhoneMax ? 264 : 292;
+
+  /// Google Map camera padding. Sides are unchanged; the bottom (which keeps
+  /// the focus above the sheet) only tightens on narrow phones.
+  static EdgeInsets mapCameraPaddingFor(BuildContext context) =>
+      MediaQuery.sizeOf(context).width <= narrowPhoneMax
+      ? const EdgeInsets.fromLTRB(52, 116, 52, 240)
+      : const EdgeInsets.fromLTRB(52, 116, 52, 360);
+}

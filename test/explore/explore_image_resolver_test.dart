@@ -1,5 +1,5 @@
+import 'package:bayhop/explore/explore_image_resolver.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/explore_image_resolver.dart';
 
 void main() {
   group('fallbackExploreImageUrlFor', () {

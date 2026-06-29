@@ -1,14 +1,14 @@
+import 'package:bayhop/explore/itinerary.dart';
+import 'package:bayhop/explore/transit_route_handoff_controller.dart';
+import 'package:bayhop/home_page.dart';
+import 'package:bayhop/location/location.dart';
+import 'package:bayhop/model/model_client.dart';
+import 'package:bayhop/transit/google_routes_transit_client.dart';
+import 'package:bayhop/transit/saved_itinerary_transit_planner.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/explore/itinerary.dart';
-import 'package:genui_template/explore/transit_route_handoff_controller.dart';
-import 'package:genui_template/home_page.dart';
-import 'package:genui_template/location/location.dart';
-import 'package:genui_template/model/model_client.dart';
-import 'package:genui_template/transit/google_routes_transit_client.dart';
-import 'package:genui_template/transit/saved_itinerary_transit_planner.dart';
 
 void main() {
   group('HomePage suggestions', () {

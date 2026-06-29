@@ -1,6 +1,6 @@
+import 'package:bayhop/location/location_point.dart';
+import 'package:bayhop/places/places.dart';
 import 'package:flutter/widgets.dart';
-import 'package:genui_template/location/location_point.dart';
-import 'package:genui_template/places/places.dart';
 
 enum MapPlaceMarkerKind { searchResult, savedItinerary }
 

@@ -1,8 +1,10 @@
+import 'dart:async';
+
+import 'package:bayhop/conversation.dart';
+import 'package:bayhop/model/model_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
-import 'package:genui_template/conversation.dart';
-import 'package:genui_template/model/model_client.dart';
 
 void main() {
   group('GenUiSession', () {
@@ -64,7 +66,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      session.sendMessage(' Next trains from Embarcadero ');
+      unawaited(session.sendMessage(' Next trains from Embarcadero '));
       await _waitForHistoryLength(modelClient, 1);
 
       expect(
@@ -86,7 +88,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      session.sendMessage('Next trains from Embarcadero');
+      unawaited(session.sendMessage('Next trains from Embarcadero'));
       await _waitForHistoryLength(modelClient, 1);
 
       expect(
@@ -109,13 +111,53 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      session.sendMessage('Next trains from Embarcadero');
+      unawaited(session.sendMessage('Next trains from Embarcadero'));
       await _waitForHistoryLength(modelClient, 1);
 
       expect(
         modelClient.history.single.text,
         'Current time is 09:05. Request: Next trains from Embarcadero',
       );
+    });
+
+    test('serializes back-to-back sends through one model stream', () async {
+      late final _BlockingModelClient modelClient;
+      final session = GenUiSession(
+        currentTime: () => DateTime(2026, 6, 26, 9, 5),
+        modelClientBuilder: ({required systemPrompt}) {
+          return modelClient = _BlockingModelClient(
+            systemPrompt: systemPrompt,
+          );
+        },
+      );
+      addTearDown(session.dispose);
+
+      final firstSend = session.sendMessage('First request');
+      final secondSend = session.sendMessage('Second request');
+
+      await modelClient.waitForStartedCount(1);
+      expect(modelClient.maxActiveGenerations, 1);
+      expect(
+        modelClient.history.map((message) => message.text),
+        ['Current time is 09:05. Request: First request'],
+      );
+
+      modelClient.completeCurrent('first response');
+      await firstSend;
+      await modelClient.waitForStartedCount(2);
+
+      expect(modelClient.maxActiveGenerations, 1);
+      expect(
+        modelClient.history.map((message) => message.text),
+        [
+          'Current time is 09:05. Request: First request',
+          'first response',
+          'Current time is 09:05. Request: Second request',
+        ],
+      );
+
+      modelClient.completeCurrent('second response');
+      await secondSend;
     });
 
     testWidgets('adds the current-time prefix to button interactions', (
@@ -134,7 +176,7 @@ void main() {
       );
       addTearDown(session.dispose);
 
-      session.sendMessage('Show departure controls');
+      unawaited(session.sendMessage('Show departure controls'));
       await _pumpUntil(
         tester,
         () => session.conversationState.value.surfaces.contains('main'),
@@ -202,6 +244,64 @@ class _CapturingModelClient extends ModelClient {
     if (history.length == 1 && firstResponse != null) {
       yield firstResponse!;
     }
+  }
+
+  @override
+  void dispose() {}
+}
+
+class _BlockingModelClient extends ModelClient {
+  _BlockingModelClient({required super.systemPrompt});
+
+  final _startWaiters = <Completer<void>>[];
+  Completer<String>? _currentResponse;
+  int _startedGenerations = 0;
+  int _activeGenerations = 0;
+  int maxActiveGenerations = 0;
+
+  Future<void> waitForStartedCount(int count) async {
+    if (_startedGenerations >= count) return;
+
+    final completer = Completer<void>();
+    _startWaiters.add(completer);
+    await completer.future;
+  }
+
+  void completeCurrent(String response) {
+    final currentResponse = _currentResponse;
+    if (currentResponse == null) {
+      fail('No model response is waiting.');
+    }
+
+    _currentResponse = null;
+    currentResponse.complete(response);
+  }
+
+  @override
+  Stream<String> generateResponse() async* {
+    _startedGenerations++;
+    _activeGenerations++;
+    if (_activeGenerations > maxActiveGenerations) {
+      maxActiveGenerations = _activeGenerations;
+    }
+    _completeReadyStartWaiters();
+
+    final response = Completer<String>();
+    _currentResponse = response;
+
+    try {
+      final text = await response.future;
+      if (text.isNotEmpty) yield text;
+    } finally {
+      _activeGenerations--;
+    }
+  }
+
+  void _completeReadyStartWaiters() {
+    for (final waiter in _startWaiters) {
+      if (!waiter.isCompleted) waiter.complete();
+    }
+    _startWaiters.clear();
   }
 
   @override

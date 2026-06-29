@@ -1,7 +1,7 @@
 import 'dart:convert';
 
+import 'package:bayhop/places/places.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/places/places.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 

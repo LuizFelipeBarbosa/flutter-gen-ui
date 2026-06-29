@@ -1,9 +1,9 @@
 import 'dart:convert';
 
+import 'package:bayhop/location/location_point.dart';
+import 'package:bayhop/transit/google_routes_transit_client.dart';
+import 'package:bayhop/transit/transit_lines.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/location/location_point.dart';
-import 'package:genui_template/transit/google_routes_transit_client.dart';
-import 'package:genui_template/transit/transit_lines.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 

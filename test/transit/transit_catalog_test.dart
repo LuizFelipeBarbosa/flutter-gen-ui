@@ -1,7 +1,7 @@
+import 'package:bayhop/catalog.dart';
+import 'package:bayhop/prompt.dart';
+import 'package:bayhop/transit/transit_catalog.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui_template/catalog.dart';
-import 'package:genui_template/prompt.dart';
-import 'package:genui_template/transit/transit_catalog.dart';
 
 void main() {
   test('buildCatalog includes transit components', () {
